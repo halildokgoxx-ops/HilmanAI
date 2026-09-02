@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HilmanAI - Yönetici Kontrol Merkezi (/admin)</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body style="background: #08090b; padding: 40px 20px; overflow-y: auto;">
+    <div style="max-width: 960px; margin: 0 auto;">
+        
+        <!-- Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 44px; height: 44px; border-radius: 50%; box-shadow: 0 0 20px rgba(0,242,254,0.5);" alt="HilmanAI">
+                <div>
+                    <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #fff;">HilmanAI Zirve Admin Paneli</h1>
+                    <div style="font-size: 0.8rem; color: #00f2fe;">🔒 Özel Güvenlikli Yönetici Arabirimi</div>
+                </div>
+            </div>
+            <a href="/" style="color: #c4c7c5; text-decoration: none; font-size: 0.85rem; padding: 8px 16px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">← Ana Ekrana Dön</a>
+        </div>
+
+        <!-- Login Form -->
+        <div id="admin-login-box" style="background: #121418; border: 1px solid rgba(0,242,254,0.3); border-radius: 20px; padding: 30px; max-width: 440px; margin: 60px auto; text-align: center;">
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.3rem; margin-bottom: 10px; color: #fff;">Admin Girişi</h2>
+            <p style="color: #8e918f; font-size: 0.85rem; margin-bottom: 20px;">Yönetici şifrenizi girerek kontrol paneline erişin:</p>
+            <input type="password" id="admin-pw" placeholder="Admin Şifresi..." style="width: 100%; padding: 12px 16px; background: #1a1c22; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; margin-bottom: 16px; outline: none;">
+            <button onclick="loginAdmin()" style="width: 100%; padding: 12px; background: var(--primary-gradient); border: none; border-radius: 12px; font-weight: 800; cursor: pointer; color: #000;">Giriş Yap</button>
+            <div id="admin-err" style="display: none; color: #ea4335; font-size: 0.85rem; margin-top: 12px;">Hatalı şifre!</div>
+        </div>
+
+        <!-- Dashboard Content (Hidden by default) -->
+        <div id="admin-dashboard" style="display: none;">
+            <!-- Metrics -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
+                <div style="background: #121418; border: 1px solid rgba(0,242,254,0.3); border-radius: 18px; padding: 20px; text-align: center;">
+                    <div style="font-size: 0.78rem; color: #8e918f; font-weight: 700;">👥 TOPLAM KAYITLI HESAP</div>
+                    <div id="metric-users" style="font-size: 2rem; font-weight: 900; color: #00f2fe; margin-top: 6px;">0</div>
+                </div>
+                <div style="background: #121418; border: 1px solid rgba(155,114,203,0.3); border-radius: 18px; padding: 20px; text-align: center;">
+                    <div style="font-size: 0.78rem; color: #8e918f; font-weight: 700;">💬 TOPLAM MESAJ & İSTEK</div>
+                    <div id="metric-msgs" style="font-size: 2rem; font-weight: 900; color: #c4a1ff; margin-top: 6px;">0</div>
+                </div>
+            </div>
+
+            <!-- Users Management & Quota -->
+            <div style="background: #121418; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px; margin-bottom: 30px;">
+                <h3 style="font-family: 'Outfit', sans-serif; color: #fff; margin-bottom: 16px;">⚙️ Kullanıcı Kota ve VIP Yönetimi</h3>
+                
+                <div style="display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px;">
+                    <select id="user-select" onchange="onUserChange()" style="flex: 2; min-width: 240px; padding: 12px; background: #1a1c22; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; outline: none;"></select>
+                    <input type="number" id="quota-input" value="1000" style="flex: 1; min-width: 140px; padding: 12px; background: #1a1c22; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; outline: none;">
+                    <button onclick="saveQuota()" style="padding: 12px 20px; background: #00f2fe; color: #000; font-weight: 800; border: none; border-radius: 12px; cursor: pointer;">💾 Kotayı Kaydet</button>
+                    <button onclick="makeVIP()" style="padding: 12px 20px; background: #9b72cb; color: #fff; font-weight: 800; border: none; border-radius: 12px; cursor: pointer;">👑 Sınırsız VIP Yap</button>
+                </div>
+                <div id="quota-status" style="font-size: 0.85rem; color: #34a853; font-weight: 600;"></div>
+            </div>
+
+            <!-- Chat Inspection Tool -->
+            <div style="background: #121418; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px;">
+                <h3 style="font-family: 'Outfit', sans-serif; color: #fff; margin-bottom: 16px;">🔍 Kullanıcı Sohbet Geçmişi İnceleme</h3>
+                <select id="session-select" onchange="onSessionChange()" style="width: 100%; padding: 12px; background: #1a1c22; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; outline: none; margin-bottom: 16px;"></select>
+                <div id="chat-transcript" style="background: #08090b; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; max-height: 400px; overflow-y: auto; font-size: 0.85rem; color: #c4c7c5; font-family: 'Fira Code', monospace; white-space: pre-wrap;">(Sohbet seçilmedi)</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let adminData = null;
+
+        async function loginAdmin() {
+            const pw = document.getElementById('admin-pw').value;
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({password: pw})
+                });
+                const data = await res.json();
+                if (data.success) {
+                    adminData = data;
+                    document.getElementById('admin-login-box').style.display = 'none';
+                    document.getElementById('admin-dashboard').style.display = 'block';
+                    renderDashboard();
+                } else {
+                    document.getElementById('admin-err').style.display = 'block';
+                }
+            } catch(e) {
+                document.getElementById('admin-err').style.display = 'block';
+            }
+        }
+
+        function renderDashboard() {
+            document.getElementById('metric-users').innerText = adminData.total_users;
+            document.getElementById('metric-msgs').innerText = adminData.total_messages;
+            
+            const userSelect = document.getElementById('user-select');
+            userSelect.innerHTML = '';
+            const users = adminData.users;
+            Object.keys(users).forEach(email => {
+                const opt = document.createElement('option');
+                opt.value = email;
+                opt.innerText = `${email} (${users[email].is_vip ? '👑 VIP' : users[email].quota + ' Kota'})`;
+                userSelect.appendChild(opt);
+            });
+
+            onUserChange();
+        }
+
+        function onUserChange() {
+            const email = document.getElementById('user-select').value;
+            if (!email || !adminData.users[email]) return;
+            const u = adminData.users[email];
+            document.getElementById('quota-input').value = u.quota || 1000;
+
+            const sessSelect = document.getElementById('session-select');
+            sessSelect.innerHTML = '';
+            const sessions = u.sessions || {};
+            const keys = Object.keys(sessions);
+            if (keys.length === 0) {
+                sessSelect.innerHTML = '<option>(Bu kullanıcının geçmişi yok)</option>';
+                document.getElementById('chat-transcript').innerText = 'Kayıtlı mesaj bulunamadı.';
+                return;
+            }
+            keys.forEach(k => {
+                const opt = document.createElement('option');
+                opt.value = k;
+                opt.innerText = k;
+                sessSelect.appendChild(opt);
+            });
+            onSessionChange();
+        }
+
+        function onSessionChange() {
+            const email = document.getElementById('user-select').value;
+            const sessKey = document.getElementById('session-select').value;
+            if (email && sessKey && adminData.users[email] && adminData.users[email].sessions) {
+                const msgs = adminData.users[email].sessions[sessKey] || [];
+                document.getElementById('chat-transcript').innerText = JSON.stringify(msgs, null, 2);
+            }
+        }
+
+        async function saveQuota() {
+            const email = document.getElementById('user-select').value;
+            const quota = parseInt(document.getElementById('quota-input').value);
+            const res = await fetch('/api/admin/set-quota', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_email: email, quota: quota, is_vip: false})
+            });
+            const d = await res.json();
+            document.getElementById('quota-status').innerText = d.message;
+        }
+
+        async function makeVIP() {
+            const email = document.getElementById('user-select').value;
+            const res = await fetch('/api/admin/set-quota', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({user_email: email, quota: 999999, is_vip: true})
+            });
+            const d = await res.json();
+            document.getElementById('quota-status').innerText = `👑 ${email} sınırsız VIP yapıldı!`;
+        }
+    </script>
+</body>
+</html>

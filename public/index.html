@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HilmanAI - 2026 Zirve Yapay Zeka</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+
+    <!-- 0. TAM EKRAN SİYAH GİRİŞ KAPISI (AUTH OVERLAY) -->
+    <div id="auth-overlay" class="auth-overlay">
+        <div class="auth-card">
+            <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" class="auth-logo" alt="HilmanAI Logo">
+            <h1 class="brand-title">HilmanAI 1.0 Zirve</h1>
+            <p style="color: #9aa0a6; font-size: 0.95rem; line-height: 1.5; margin-bottom: 24px;">
+                Yapay zekanın en yüksek noktasına erişmek için Google ile oturum açın.
+            </p>
+
+            <!-- Onay Kutusu (Terms & Privacy Checkbox) -->
+            <div style="margin: 20px 0 16px 0; text-align: left; background: rgba(255,255,255,0.03); padding: 12px 16px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.08);">
+                <label style="display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 0.82rem; color: #c4c7c5; line-height: 1.5;">
+                    <input type="checkbox" id="terms-agree" checked style="margin-top: 3px; accent-color: #00f2fe; width: 16px; height: 16px; cursor: pointer;"/>
+                    <span>HilmanAI <a href="/terms" target="_blank" style="color: #00f2fe; font-weight: 600; text-decoration: underline;">Kullanım Koşulları</a>'nı ve <a href="/privacy" target="_blank" style="color: #00f2fe; font-weight: 600; text-decoration: underline;">Gizlilik Politikası</a>'nı okudum, kabul ediyorum.</span>
+                </label>
+            </div>
+
+            <div id="terms-warning" style="display: none; color: #ea4335; font-size: 0.8rem; margin-bottom: 12px; font-weight: 600;">
+                ⚠️ Lütfen devam etmeden önce Kullanım Koşulları ve Gizlilik Politikasını onaylayın.
+            </div>
+
+            <button onclick="loginWithGoogle()" class="google-auth-btn" type="button">
+                <svg width="22" height="22" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>Google ile Giriş Yap</span>
+            </button>
+
+            <div style="font-size: 0.78rem; color: #8e918f; margin-top: 18px;">
+                <a href="/privacy" target="_blank" style="color: #8e918f; text-decoration: underline; margin-right: 12px;">Gizlilik Politikası</a> • 
+                <a href="/terms" target="_blank" style="color: #8e918f; text-decoration: underline; margin-left: 12px;">Kullanım Koşulları</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- ANA UYGULAMA DÜZENİ -->
+    <div class="app-container">
+        
+        <!-- SOL SIDEBAR -->
+        <aside class="sidebar">
+            <div class="sidebar-brand">
+                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 0 12px rgba(0,242,254,0.5);" alt="HilmanAI">
+                <span style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 800; background: linear-gradient(135deg, #4285F4, #9B72CB, #00f2fe); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">HilmanAI</span>
+            </div>
+
+            <button onclick="startNewChat()" class="new-chat-btn">
+                <span>➕</span>
+                <span>Yeni Sohbet</span>
+            </button>
+
+            <div style="font-size: 0.75rem; color: #8e918f; font-weight: 700; margin: 18px 0 8px 6px; letter-spacing: 0.5px;">SOHBET GEÇMİŞİ</div>
+            
+            <div id="history-list" class="history-list">
+                <div id="empty-history-msg" style="font-size: 0.8rem; color: #7d8590; padding: 12px; text-align: center; border: 1px dashed rgba(255,255,255,0.08); border-radius: 12px;">
+                    💬 Henüz sohbet geçmişi yok
+                </div>
+            </div>
+
+            <!-- SOL ALT PROFİL VE NAVİGASYON -->
+            <div class="sidebar-profile">
+                <div id="profile-widget" class="profile-widget">
+                    <img id="user-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=guest" class="profile-avatar" alt="User">
+                    <div style="overflow: hidden; flex: 1;">
+                        <div id="user-name" style="font-size: 0.86rem; font-weight: 800; color: #fff; white-space: nowrap; text-overflow: ellipsis;">Misafir</div>
+                        <div id="user-email" style="font-size: 0.72rem; color: #8e918f; white-space: nowrap; text-overflow: ellipsis;">Giriş Yapılmadı</div>
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: 8px;">
+                    <a href="/api" target="_blank" style="flex: 1; text-align: center; font-size: 0.75rem; font-weight: 700; color: #00f2fe; padding: 6px 8px; background: rgba(0,242,254,0.08); border-radius: 10px; text-decoration: none; border: 1px solid rgba(0,242,254,0.2);">⚡ API Hub</a>
+                    <a href="/admin" target="_blank" style="flex: 1; text-align: center; font-size: 0.75rem; font-weight: 700; color: #c4a1ff; padding: 6px 8px; background: rgba(155,114,203,0.08); border-radius: 10px; text-decoration: none; border: 1px solid rgba(155,114,203,0.2);">🔒 Admin</a>
+                    <button onclick="logout()" style="padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #ea4335; background: rgba(234,67,53,0.08); border: 1px solid rgba(234,67,53,0.2); border-radius: 10px; cursor: pointer;">Çıkış</button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- SAĞ CHAT MERKEZİ -->
+        <main class="chat-area">
+            <header class="chat-header">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 28px; height: 28px; border-radius: 50%;" alt="HilmanAI">
+                    <span style="font-size: 0.95rem; font-weight: 700; color: #fff;">HilmanAI 1.0</span>
+                    <span style="font-size: 0.72rem; background: rgba(0, 242, 254, 0.15); color: #00f2fe; padding: 2px 10px; border-radius: 12px; font-weight: 700; border: 1px solid rgba(0, 242, 254, 0.3);">
+                        ● Zirve Motoru Aktif
+                    </span>
+                </div>
+                <div style="font-size: 0.78rem; color: #8e918f;">
+                    HilmanAI Universal Gateway
+                </div>
+            </header>
+
+            <div id="chat-messages" class="chat-messages">
+                <div class="message-row assistant">
+                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 32px; height: 32px; border-radius: 50%; align-self: flex-start;" alt="HilmanAI">
+                    <div class="message-bubble">
+                        Merhaba! Ben <b>HilmanAI</b>. Size kodlama, derin mantık yürütme, 8K görsel üretimi veya herhangi bir karmaşık problemde nasıl yardımcı olabilirim?
+                    </div>
+                </div>
+            </div>
+
+            <!-- INPUT KAPSÜLÜ -->
+            <div class="input-capsule-wrapper">
+                <div class="input-capsule">
+                    <textarea id="chat-input" class="input-text-area" rows="1" placeholder="HilmanAI'a sorun, 'resim çiz' veya kod isteyin..." onkeydown="handleKey(event)"></textarea>
+                    
+                    <div class="input-bottom-bar">
+                        <select id="mode-selector" class="mode-select">
+                            <option value="⚡ Hızlı Mod (Flash)">⚡ Hızlı Mod (Flash)</option>
+                            <option value="🧠 Düşünen Mod (Derin Akıl Yürütme)">🧠 Düşünen Mod (Derin Akıl Yürütme)</option>
+                            <option value="💻 Pro Mod (Yazılım & Matematik)">💻 Pro Mod (Yazılım & Matematik)</option>
+                        </select>
+
+                        <button id="send-btn" onclick="sendMessage()" class="send-btn">➤</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
