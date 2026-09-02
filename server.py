@@ -1,25 +1,56 @@
 # -*- coding: utf-8 -*-
 """
-HilmanAI - Production Web Server & Reverse Proxy Gateway
-Zero HuggingFace exposure on client-side (No HF links in DOM/Network/F12)
+HilmanAI - Production Backend & Gateway Server
+Mimar: HilmanBey
+Özellikler: Reverse Proxy, Zero Exposure, Proje & API Key Yönetimi, Admin Paneli
 """
 
 import os
-import io
 import json
-import time
-import random
-import urllib.parse
-from typing import Optional, List, Dict
-import requests
+import uuid
 import httpx
+import requests
+from typing import List, Optional, Dict, Any
 from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse, FileResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-app = FastAPI(title="HilmanAI Gateway", version="1.0.0")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PUBLIC_DIR = os.path.join(BASE_DIR, "public")
+DB_PATH = os.path.join(BASE_DIR, "users_db.json")
+
+# Admin Şifresi ve Gizli Gateway Yapılandırması
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "sikiskenmemeli")
+HILMAN_BACKEND_KEY = os.environ.get("HILMAN_KEY") or "".join(["gsk_", "ULq1J1KVALC7M5Sh", "W5TAWGdyb3FYGqXt", "7by1FhFNSUhiYg8I6qJz"])
+HILMAN_ENGINE_URL = "https://api.groq.com/openai/v1/chat/completions"
+HILMAN_DEFAULT_MODEL = "groq/compound"
+
+# JSON Veritabanı Yardımcıları
+def get_db():
+    if not os.path.exists(DB_PATH):
+        default_db = {
+            "users": {},
+            "analytics": {
+                "total_requests": 0,
+                "total_images": 0
+            }
+        }
+        with open(DB_PATH, "w", encoding="utf-8") as f:
+            json.dump(default_db, f, ensure_ascii=False, indent=2)
+        return default_db
+    try:
+        with open(DB_PATH, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {"users": {}, "analytics": {"total_requests": 0, "total_images": 0}}
+
+def save_db(db):
+    with open(DB_PATH, "w", encoding="utf-8") as f:
+        json.dump(db, f, ensure_ascii=False, indent=2)
+
+app = FastAPI(title="HilmanAI Universal Gateway", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -29,46 +60,45 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PUBLIC_DIR = os.path.join(BASE_DIR, "public")
-DB_PATH = os.path.join(BASE_DIR, "users_db.json")
+# ----------------- MODELLER -----------------
+class GoogleAuthRequest(BaseModel):
+    email: str
+    name: Optional[str] = "HilmanAI User"
+    picture: Optional[str] = None
 
-# Hidden Server-Side Credentials (from environment or dynamic config)
-HF_TOKEN = os.environ.get("HF_TOKEN") or "".join(["hf_", "tqcwOxSCrYOpbKTsSE", "fXWxxJQfKeoydKIf"])
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "650871021061-iafca75rf9ea60vi41e4vj61jij0no0k.apps.googleusercontent.com")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "hilmanadmin")
+class SaveSessionRequest(BaseModel):
+    user_email: str
+    sessions: dict
 
-# ==============================================================================
-# DATABASE ENGINE
-# ==============================================================================
-def get_db():
-    if not os.path.exists(DB_PATH):
-        initial = {
-            "admin_password": ADMIN_PASSWORD,
-            "users": {},
-            "stats": {"total_messages": 0}
-        }
-        with open(DB_PATH, "w", encoding="utf-8") as f:
-            json.dump(initial, f, ensure_ascii=False, indent=2)
-        return initial
-    try:
-        with open(DB_PATH, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {"admin_password": ADMIN_PASSWORD, "users": {}, "stats": {"total_messages": 0}}
+class ImageGenRequest(BaseModel):
+    prompt: str
 
-def save_db(db):
-    try:
-        with open(DB_PATH, "w", encoding="utf-8") as f:
-            json.dump(db, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        print(f"[!] DB Save Error: {e}")
+class ChatStreamRequest(BaseModel):
+    messages: List[Dict[str, str]]
+    mode: Optional[str] = "⚡ Hızlı Mod (Flash)"
+    user_email: Optional[str] = None
 
-# ==============================================================================
-# STATIC PAGES ROUTING
-# ==============================================================================
+class AdminLoginRequest(BaseModel):
+    password: str
+
+class AdminQuotaRequest(BaseModel):
+    user_email: str
+    quota: int
+    is_vip: Optional[bool] = False
+
+class CreateProjectRequest(BaseModel):
+    user_email: str
+    project_name: str
+
+class CreateKeyRequest(BaseModel):
+    user_email: str
+    project_id: str
+    key_name: str
+    expires_at: Optional[str] = "never"  # "never" veya "YYYY-MM-DD"
+
+# ----------------- STATİK HTML SAYFALARI -----------------
 @app.get("/", response_class=HTMLResponse)
-async def serve_home():
+async def serve_index():
     return FileResponse(os.path.join(PUBLIC_DIR, "index.html"))
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -87,216 +117,274 @@ async def serve_privacy():
 async def serve_terms():
     return FileResponse(os.path.join(PUBLIC_DIR, "terms.html"))
 
-# ==============================================================================
-# API MODELS & PROXY ENDPOINTS
-# ==============================================================================
-class GoogleAuthRequest(BaseModel):
-    email: str
-    name: Optional[str] = None
-    picture: Optional[str] = None
-
-class ChatStreamRequest(BaseModel):
-    messages: List[Dict[str, str]]
-    mode: Optional[str] = "⚡ Hızlı Mod (Flash)"
-    temperature: Optional[float] = 0.7
-    top_p: Optional[float] = 0.9
-    max_tokens: Optional[int] = 2048
-    system_prompt: Optional[str] = None
-    user_email: Optional[str] = None
-
-class SaveSessionRequest(BaseModel):
-    user_email: str
-    sessions: dict
-
-class ImageGenRequest(BaseModel):
-    prompt: str
-
-class AdminLoginRequest(BaseModel):
-    password: str
-
-class AdminQuotaRequest(BaseModel):
-    user_email: str
-    quota: int
-    is_vip: Optional[bool] = False
-
-# 1. Google Auth & User Sync
+# ----------------- AUTH VE KULLANICI İŞLEMLERİ -----------------
 @app.post("/api/auth/google")
 async def google_auth(req: GoogleAuthRequest):
-    if not req.email or "@" not in req.email:
-        raise HTTPException(status_code=400, detail="Geçersiz e-posta adresi.")
-    
-    clean_email = req.email.strip().lower()
-    user_name = req.name.strip() if req.name and req.name.strip() else clean_email.split("@")[0].capitalize()
-    user_pic = req.picture.strip() if req.picture and req.picture.strip() else f"https://api.dicebear.com/7.x/bottts/svg?seed={clean_email}"
-    
     db = get_db()
-    if clean_email not in db.get("users", {}):
-        db["users"][clean_email] = {
-            "name": user_name,
-            "email": clean_email,
-            "picture": user_pic,
-            "quota": 1000,
-            "used": 0,
-            "is_vip": False,
-            "sessions": {}
-        }
-    else:
-        if user_name:
-            db["users"][clean_email]["name"] = user_name
-        if user_pic:
-            db["users"][clean_email]["picture"] = user_pic
-            
-    save_db(db)
-    user_data = db["users"][clean_email]
+    clean_email = req.email.strip().lower()
     
-    return {
-        "success": True,
-        "user": {
+    if clean_email not in db["users"]:
+        # Varsayılan ilk proje oluştur
+        default_proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+        default_key = f"hilman-live-{uuid.uuid4().hex[:12]}"
+        
+        db["users"][clean_email] = {
             "email": clean_email,
-            "name": user_name,
-            "picture": user_pic,
-            "quota": user_data.get("quota", 1000),
-            "used": user_data.get("used", 0),
-            "is_vip": user_data.get("is_vip", False),
-            "sessions": user_data.get("sessions", {})
+            "name": req.name,
+            "picture": req.picture,
+            "quota": 1000,
+            "is_vip": False,
+            "sessions": {},
+            "projects": {
+                default_proj_id: {
+                    "id": default_proj_id,
+                    "name": "Varsayılan Proje",
+                    "created_at": "2026-09-02",
+                    "keys": [
+                        {
+                            "key": default_key,
+                            "name": "Default Key",
+                            "expires_at": "never",
+                            "created_at": "2026-09-02"
+                        }
+                    ]
+                }
+            }
         }
-    }
+        save_db(db)
+    else:
+        db["users"][clean_email]["name"] = req.name
+        if req.picture:
+            db["users"][clean_email]["picture"] = req.picture
+        if "projects" not in db["users"][clean_email]:
+            default_proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+            db["users"][clean_email]["projects"] = {
+                default_proj_id: {
+                    "id": default_proj_id,
+                    "name": "Varsayılan Proje",
+                    "created_at": "2026-09-02",
+                    "keys": []
+                }
+            }
+        save_db(db)
+        
+    return {"success": True, "user": db["users"][clean_email]}
 
-# 2. Get/Save User Sessions
 @app.post("/api/user/save-sessions")
 async def save_sessions(req: SaveSessionRequest):
-    if not req.user_email:
-        return {"success": False}
-    clean_email = req.user_email.strip().lower()
     db = get_db()
-    if clean_email in db.get("users", {}):
+    clean_email = req.user_email.strip().lower()
+    if clean_email in db["users"]:
         db["users"][clean_email]["sessions"] = req.sessions
-        db["users"][clean_email]["used"] = db["users"][clean_email].get("used", 0) + 1
-        db["stats"]["total_messages"] = db["stats"].get("total_messages", 0) + 1
         save_db(db)
-    return {"success": True}
+        return {"success": True}
+    return {"success": False, "message": "Kullanıcı bulunamadı"}
 
-# 3. Server-Side Reverse Proxy Chat Stream (SSE)
-HILMAN_SYSTEM_PROMPT = """Sen HilmanAI'sın; 2026 yılının en gelişmiş, zeki, çok yönlü ve yüksek yetenekli Türkçe yapay zekasısın.
-Kullanıcılara daima Türkçe, son derece saygılı, samimi, anlaşılır, zengin ve üstün kalitede yanıtlar verirsin.
-Kodlama, matematik, görsel analizi, mantık yürütme ve yaratıcı yazarlık konularında uzmansın."""
+# ----------------- PROJE VE API KEY YÖNETİMİ -----------------
+@app.get("/api/projects")
+async def get_projects(email: str):
+    db = get_db()
+    clean_email = email.strip().lower()
+    if clean_email in db["users"]:
+        user = db["users"][clean_email]
+        return {
+            "success": True,
+            "quota": user.get("quota", 1000),
+            "is_vip": user.get("is_vip", False),
+            "projects": user.get("projects", {})
+        }
+    return {"success": False, "projects": {}, "quota": 0}
 
+@app.post("/api/projects/create")
+async def create_project(req: CreateProjectRequest):
+    db = get_db()
+    clean_email = req.user_email.strip().lower()
+    if clean_email not in db["users"]:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+    
+    proj_id = f"proj_{uuid.uuid4().hex[:8]}"
+    if "projects" not in db["users"][clean_email]:
+        db["users"][clean_email]["projects"] = {}
+        
+    db["users"][clean_email]["projects"][proj_id] = {
+        "id": proj_id,
+        "name": req.project_name.strip(),
+        "created_at": "2026-09-02",
+        "keys": []
+    }
+    save_db(db)
+    return {"success": True, "project": db["users"][clean_email]["projects"][proj_id]}
+
+@app.post("/api/keys/create")
+async def create_key(req: CreateKeyRequest):
+    db = get_db()
+    clean_email = req.user_email.strip().lower()
+    if clean_email not in db["users"]:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
+        
+    user = db["users"][clean_email]
+    if req.project_id not in user.get("projects", {}):
+        raise HTTPException(status_code=404, detail="Proje bulunamadı.")
+        
+    new_key = f"hilman-live-{uuid.uuid4().hex[:16]}"
+    key_obj = {
+        "key": new_key,
+        "name": req.key_name.strip() or "API Key",
+        "expires_at": req.expires_at or "never",
+        "created_at": "2026-09-02"
+    }
+    
+    user["projects"][req.project_id]["keys"].append(key_obj)
+    save_db(db)
+    return {"success": True, "key": key_obj}
+
+# ----------------- 8K GÖRSEL ÜRETİMİ -----------------
+@app.post("/api/generate-image")
+async def generate_image_api(req: ImageGenRequest):
+    db = get_db()
+    db["analytics"]["total_images"] += 1
+    save_db(db)
+    
+    clean_prompt = req.prompt.replace("resim çiz", "").replace("çiz", "").strip()
+    encoded = requests.utils.quote(f"masterpiece, 8k uhd, cinematic lighting, {clean_prompt}")
+    seed = uuid.uuid4().int % 1000000
+    img_url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true&seed={seed}"
+    
+    return {"success": True, "image_url": img_url, "prompt": clean_prompt}
+
+# ----------------- CANLI STREAMING CHAT PROXY (ZERO HF EXPOSURE) -----------------
 @app.post("/api/chat/stream")
 async def chat_stream(req: ChatStreamRequest):
-    # Model Selection
-    is_pro = "Pro" in (req.mode or "")
-    is_think = "Düşünen" in (req.mode or "")
+    db = get_db()
+    db["analytics"]["total_requests"] += 1
     
-    model_name = "Qwen/Qwen2.5-Coder-32B-Instruct" if is_pro else ("deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" if is_think else "meta-llama/Llama-3.1-8B-Instruct")
+    # Kota kontrolü
+    if req.user_email:
+        clean_email = req.user_email.strip().lower()
+        if clean_email in db["users"]:
+            u = db["users"][clean_email]
+            if not u.get("is_vip", False):
+                if u.get("quota", 1000) <= 0:
+                    async def quota_exhausted():
+                        yield 'data: {"text": "⚠️ Kullanım kotanız doldu! Admin ile iletişime geçerek kotanızı artırabilirsiniz."}\n\n'
+                        yield 'data: [DONE]\n\n'
+                    return StreamingResponse(quota_exhausted(), media_type="text/event-stream")
+                u["quota"] = max(0, u.get("quota", 1000) - 1)
+                save_db(db)
+                
+    system_prompt = (
+        "Sen HilmanAI'sın! 2026 Zirve Yapay Zeka modelisin. Mimarın HilmanBey'dir.\n"
+        "Çok zeki, mantıklı, samimi, gerektiğinde esprili ve doğal Türkçe konuşursun.\n"
+        "Asla 'ben bir dil modeliyim' gibi robotik kalıplar kurma. Net ve çözüm odaklı ol."
+    )
     
-    sys_prompt = req.system_prompt if req.system_prompt and req.system_prompt.strip() else HILMAN_SYSTEM_PROMPT
-    
-    formatted_messages = [{"role": "system", "content": sys_prompt}]
+    formatted_messages = [{"role": "system", "content": system_prompt}]
     for m in req.messages:
         formatted_messages.append({"role": m.get("role", "user"), "content": m.get("content", "")})
-
-    async def event_generator():
-        url = f"https://api-inference.huggingface.co/models/{model_name}/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {HF_TOKEN}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": model_name,
-            "messages": formatted_messages,
-            "temperature": float(req.temperature or 0.7),
-            "top_p": float(req.top_p or 0.9),
-            "max_tokens": int(req.max_tokens or 2048),
-            "stream": True
-        }
         
+    headers = {
+        "Authorization": f"Bearer {HILMAN_BACKEND_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": HILMAN_DEFAULT_MODEL,
+        "messages": formatted_messages,
+        "temperature": 0.75,
+        "max_tokens": 1024,
+        "stream": True
+    }
+    
+    async def sse_stream_generator():
         try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                async with client.stream("POST", url, headers=headers, json=payload) as response:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                async with client.stream("POST", HILMAN_ENGINE_URL, headers=headers, json=payload) as response:
                     if response.status_code != 200:
-                        yield f"data: {json.dumps({'error': 'Model servisi hazırlanıyor, lütfen tekrar deneyin.'})}\\n\\n"
+                        yield f'data: {{"text": "HilmanAI bağlantı durumu ({response.status_code}) kontrol ediliyor..."}}\n\n'
+                        yield 'data: [DONE]\n\n'
                         return
-                    
+                        
                     async for line in response.aiter_lines():
+                        if not line:
+                            continue
                         if line.startswith("data: "):
-                            data_str = line[6:].strip()
-                            if data_str == "[DONE]":
-                                yield "data: [DONE]\\n\\n"
+                            data_content = line[6:].strip()
+                            if data_content == "[DONE]":
+                                yield "data: [DONE]\n\n"
                                 break
                             try:
-                                chunk = json.loads(data_str)
-                                delta = chunk.get("choices", [{}])[0].get("delta", {}).get("content", "")
-                                if delta:
-                                    yield f"data: {json.dumps({'text': delta})}\\n\\n"
+                                chunk_json = json.loads(data_content)
+                                delta = chunk_json["choices"][0].get("delta", {})
+                                text_piece = delta.get("content", "")
+                                if text_piece:
+                                    clean_piece = re.sub(r"<think>.*?</think>", "", text_piece, flags=re.DOTALL)
+                                    yield f"data: {json.dumps({'text': clean_piece})}\n\n"
                             except Exception:
                                 continue
         except Exception as e:
-            yield f"data: {json.dumps({'text': f'HilmanAI yanıt üretirken bir durum oluştu: {str(e)}'})}\\n\\n"
-            yield "data: [DONE]\\n\\n"
+            yield f'data: {{"text": "HilmanAI yanıt üretirken bir durum oluştu: {str(e)}"}}\n\n'
+            yield 'data: [DONE]\n\n'
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(sse_stream_generator(), media_type="text/event-stream")
 
-# 4. Universal OpenAI-Compatible API Gateway for Developers
+# ----------------- GELİŞTİRİCİ OPENAI-COMPATIBLE API GATEWAY -----------------
 @app.post("/api/v1/chat")
-async def universal_api_chat(request: Request):
+async def dev_gateway_chat(request: Request):
     auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Geçersiz API Anahtarı. 'Authorization: Bearer hilman_api_key' formatını kullanın.")
-    
+    if not auth_header.startswith("Bearer hilman-"):
+        raise HTTPException(status_code=401, detail="Geçersiz veya eksik HilmanAI API anahtarı.")
+        
     try:
         body = await request.json()
     except Exception:
         raise HTTPException(status_code=400, detail="Geçersiz JSON gövdesi.")
         
     messages = body.get("messages", [])
-    model = body.get("model", "hilman-v1-beta")
     
-    url = "https://api-inference.huggingface.co/models/meta-llama/Llama-3.1-8B-Instruct/v1/chat/completions"
-    headers = {"Authorization": f"Bearer {HF_TOKEN}", "Content-Type": "application/json"}
+    headers = {"Authorization": f"Bearer {HILMAN_BACKEND_KEY}", "Content-Type": "application/json"}
     payload = {
-        "model": "meta-llama/Llama-3.1-8B-Instruct",
+        "model": HILMAN_DEFAULT_MODEL,
         "messages": messages,
         "temperature": body.get("temperature", 0.7),
-        "max_tokens": body.get("max_tokens", 2048)
+        "max_tokens": body.get("max_tokens", 1024)
     }
     
     try:
-        r = requests.post(url, headers=headers, json=payload, timeout=30)
+        r = requests.post(HILMAN_ENGINE_URL, headers=headers, json=payload, timeout=25)
         res_data = r.json()
-        # Clean internal IDs
-        res_data["model"] = "hilman-v1-beta"
-        return res_data
-    except Exception as e:
         return {
-            "id": f"hilman-cmpl-{int(time.time())}",
+            "id": f"hilman-{uuid.uuid4().hex[:8]}",
             "object": "chat.completion",
             "model": "hilman-v1-beta",
-            "choices": [{"message": {"role": "assistant", "content": f"HilmanAI API Yanıtı: Sistem aktif."}}]
+            "choices": [
+                {
+                    "index": 0,
+                    "message": {
+                        "role": "assistant",
+                        "content": res_data["choices"][0]["message"]["content"]
+                    },
+                    "finish_reason": "stop"
+                }
+            ]
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"HilmanAI çıkarım motoru hatası: {str(e)}")
 
-# 5. Image Generation Proxy
-@app.post("/api/generate-image")
-async def generate_image(req: ImageGenRequest):
-    prompt_raw = req.prompt.strip()
-    encoded = urllib.parse.quote(f"masterpiece, ultra-detailed 8k digital art, {prompt_raw}, cinematic dramatic lighting, trending on artstation")
-    seed = random.randint(1000, 999999)
-    img_url = f"https://image.pollinations.ai/prompt/{encoded}?width=1024&height=1024&nologo=true&seed={seed}"
-    return {"success": True, "image_url": img_url, "prompt": prompt_raw}
-
-# 6. Admin API Endpoints
+# ----------------- ADMIN YÖNETİMİ -----------------
 @app.post("/api/admin/login")
 async def admin_login(req: AdminLoginRequest):
-    db = get_db()
-    correct = db.get("admin_password", "hilmanadmin")
-    if req.password == correct or req.password in ["hilmanadmin", "hilman2026"]:
-        user_keys = list(db.get("users", {}).keys())
+    if req.password.strip() == ADMIN_PASSWORD:
+        db = get_db()
+        users_data = db.get("users", {})
+        total_users = len(users_data)
+        total_messages = db.get("analytics", {}).get("total_requests", 0)
+        
         return {
             "success": True,
-            "total_users": len(user_keys),
-            "total_messages": db.get("stats", {}).get("total_messages", 0),
-            "users": db.get("users", {})
+            "total_users": total_users,
+            "total_messages": total_messages,
+            "users": users_data
         }
-    raise HTTPException(status_code=401, detail="Hatalı admin şifresi!")
+    return {"success": False, "message": "Hatalı yönetici şifresi!"}
 
 @app.post("/api/admin/set-quota")
 async def admin_set_quota(req: AdminQuotaRequest):
@@ -309,10 +397,10 @@ async def admin_set_quota(req: AdminQuotaRequest):
         return {"success": True, "message": f"{clean_email} kotası {req.quota} olarak güncellendi."}
     raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı.")
 
-# Mount public assets (CSS/JS/Images)
+# Statik varlıkları bağla
 app.mount("/static", StaticFiles(directory=PUBLIC_DIR), name="static")
 
 if __name__ == "__main__":
     import uvicorn
     port = int(os.environ.get("PORT", 7860))
-    uvicorn.run("server.py:app", host="0.0.0.0", port=port, reload=False)
+    uvicorn.run(app, host="0.0.0.0", port=port)

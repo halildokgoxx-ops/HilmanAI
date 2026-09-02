@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HilmanAI - 2026 Zirve Yapay Zeka</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="stylesheet" href="/static/css/style.css">
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -15,7 +16,7 @@
     <!-- 0. TAM EKRAN SİYAH GİRİŞ KAPISI (AUTH OVERLAY) -->
     <div id="auth-overlay" class="auth-overlay">
         <div class="auth-card">
-            <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" class="auth-logo" alt="HilmanAI Logo">
+            <img src="/static/logo.png" class="auth-logo" alt="HilmanAI Logo">
             <h1 class="brand-title">HilmanAI 1.0 Zirve</h1>
             <p style="color: #9aa0a6; font-size: 0.95rem; line-height: 1.5; margin-bottom: 24px;">
                 Yapay zekanın en yüksek noktasına erişmek için Google ile oturum açın.
@@ -56,8 +57,8 @@
         <!-- SOL SIDEBAR -->
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 0 12px rgba(0,242,254,0.5);" alt="HilmanAI">
-                <span style="font-family: 'Outfit', sans-serif; font-size: 1.2rem; font-weight: 800; background: linear-gradient(135deg, #4285F4, #9B72CB, #00f2fe); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">HilmanAI</span>
+                <img src="/static/logo.png" style="width: 36px; height: 36px; border-radius: 50%; box-shadow: 0 0 12px rgba(0,242,254,0.5); object-fit: cover;" alt="HilmanAI">
+                <span style="font-family: 'Outfit', sans-serif; font-size: 1.25rem; font-weight: 800; background: linear-gradient(135deg, #00f2fe, #9B72CB); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">HilmanAI</span>
             </div>
 
             <button onclick="startNewChat()" class="new-chat-btn">
@@ -73,20 +74,15 @@
                 </div>
             </div>
 
-            <!-- SOL ALT PROFİL VE NAVİGASYON -->
+            <!-- SOL ALT PROFİL VE ÇIKIŞ (GİZLİ ADMIN/API BUTONLARI KALDIRILDI) -->
             <div class="sidebar-profile">
-                <div id="profile-widget" class="profile-widget">
+                <div id="profile-widget" class="profile-widget" style="margin-bottom: 0;">
                     <img id="user-avatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=guest" class="profile-avatar" alt="User">
                     <div style="overflow: hidden; flex: 1;">
                         <div id="user-name" style="font-size: 0.86rem; font-weight: 800; color: #fff; white-space: nowrap; text-overflow: ellipsis;">Misafir</div>
                         <div id="user-email" style="font-size: 0.72rem; color: #8e918f; white-space: nowrap; text-overflow: ellipsis;">Giriş Yapılmadı</div>
                     </div>
-                </div>
-
-                <div style="display: flex; gap: 8px;">
-                    <a href="/api" target="_blank" style="flex: 1; text-align: center; font-size: 0.75rem; font-weight: 700; color: #00f2fe; padding: 6px 8px; background: rgba(0,242,254,0.08); border-radius: 10px; text-decoration: none; border: 1px solid rgba(0,242,254,0.2);">⚡ API Hub</a>
-                    <a href="/admin" target="_blank" style="flex: 1; text-align: center; font-size: 0.75rem; font-weight: 700; color: #c4a1ff; padding: 6px 8px; background: rgba(155,114,203,0.08); border-radius: 10px; text-decoration: none; border: 1px solid rgba(155,114,203,0.2);">🔒 Admin</a>
-                    <button onclick="logout()" style="padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #ea4335; background: rgba(234,67,53,0.08); border: 1px solid rgba(234,67,53,0.2); border-radius: 10px; cursor: pointer;">Çıkış</button>
+                    <button onclick="logout()" title="Çıkış Yap" style="padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #ea4335; background: rgba(234,67,53,0.08); border: 1px solid rgba(234,67,53,0.2); border-radius: 10px; cursor: pointer;">Çıkış</button>
                 </div>
             </div>
         </aside>
@@ -95,7 +91,7 @@
         <main class="chat-area">
             <header class="chat-header">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 28px; height: 28px; border-radius: 50%;" alt="HilmanAI">
+                    <img src="/static/logo.png" style="width: 30px; height: 30px; border-radius: 50%; object-fit: cover;" alt="HilmanAI">
                     <span style="font-size: 0.95rem; font-weight: 700; color: #fff;">HilmanAI 1.0</span>
                     <span style="font-size: 0.72rem; background: rgba(0, 242, 254, 0.15); color: #00f2fe; padding: 2px 10px; border-radius: 12px; font-weight: 700; border: 1px solid rgba(0, 242, 254, 0.3);">
                         ● Zirve Motoru Aktif
@@ -108,7 +104,7 @@
 
             <div id="chat-messages" class="chat-messages">
                 <div class="message-row assistant">
-                    <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 32px; height: 32px; border-radius: 50%; align-self: flex-start;" alt="HilmanAI">
+                    <img src="/static/logo.png" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; align-self: flex-start;" alt="HilmanAI">
                     <div class="message-bubble">
                         Merhaba! Ben <b>HilmanAI</b>. Size kodlama, derin mantık yürütme, 8K görsel üretimi veya herhangi bir karmaşık problemde nasıl yardımcı olabilirim?
                     </div>

@@ -213,7 +213,7 @@ function appendMessage(role, contentHtml) {
     
     if (role === 'assistant') {
         row.innerHTML = `
-            <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 32px; height: 32px; border-radius: 50%; align-self: flex-start;" alt="HilmanAI">
+            <img src="/static/logo.png" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; align-self: flex-start;" alt="HilmanAI">
             <div class="message-bubble">${contentHtml}</div>
         `;
     } else {
@@ -236,7 +236,7 @@ function startNewChat() {
     const chat = document.getElementById('chat-messages');
     chat.innerHTML = `
         <div class="message-row assistant">
-            <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 32px; height: 32px; border-radius: 50%; align-self: flex-start;" alt="HilmanAI">
+            <img src="/static/logo.png" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover; align-self: flex-start;" alt="HilmanAI">
             <div class="message-bubble">
                 Yeni sohbet başlatıldı! Size nasıl yardımcı olabilirim?
             </div>

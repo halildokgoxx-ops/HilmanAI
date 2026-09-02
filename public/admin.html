@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HilmanAI - Yönetici Kontrol Merkezi (/admin)</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body style="background: #08090b; padding: 40px 20px; overflow-y: auto;">
@@ -12,7 +13,7 @@
         <!-- Header -->
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;">
             <div style="display: flex; align-items: center; gap: 14px;">
-                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 44px; height: 44px; border-radius: 50%; box-shadow: 0 0 20px rgba(0,242,254,0.5);" alt="HilmanAI">
+                <img src="/static/logo.png" style="width: 44px; height: 44px; border-radius: 50%; box-shadow: 0 0 20px rgba(0,242,254,0.5); object-fit: cover;" alt="HilmanAI">
                 <div>
                     <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #fff;">HilmanAI Zirve Admin Paneli</h1>
                     <div style="font-size: 0.8rem; color: #00f2fe;">🔒 Özel Güvenlikli Yönetici Arabirimi</div>
@@ -30,7 +31,7 @@
             <div id="admin-err" style="display: none; color: #ea4335; font-size: 0.85rem; margin-top: 12px;">Hatalı şifre!</div>
         </div>
 
-        <!-- Dashboard Content (Hidden by default) -->
+        <!-- Dashboard Content -->
         <div id="admin-dashboard" style="display: none;">
             <!-- Metrics -->
             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 30px;">
@@ -55,6 +56,12 @@
                     <button onclick="makeVIP()" style="padding: 12px 20px; background: #9b72cb; color: #fff; font-weight: 800; border: none; border-radius: 12px; cursor: pointer;">👑 Sınırsız VIP Yap</button>
                 </div>
                 <div id="quota-status" style="font-size: 0.85rem; color: #34a853; font-weight: 600;"></div>
+            </div>
+
+            <!-- Projects & Keys Inspector -->
+            <div style="background: #121418; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px; margin-bottom: 30px;">
+                <h3 style="font-family: 'Outfit', sans-serif; color: #fff; margin-bottom: 16px;">📁 Kullanıcı Proje ve API Anahtarları</h3>
+                <div id="user-projects-box" style="background: #08090b; border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 16px; font-size: 0.85rem; color: #c4c7c5; font-family: 'Fira Code', monospace; white-space: pre-wrap;">(Kullanıcı seçilmedi)</div>
             </div>
 
             <!-- Chat Inspection Tool -->
@@ -114,6 +121,11 @@
             const u = adminData.users[email];
             document.getElementById('quota-input').value = u.quota || 1000;
 
+            // Projects Inspector
+            const projects = u.projects || {};
+            document.getElementById('user-projects-box').innerText = JSON.stringify(projects, null, 2);
+
+            // Sessions Inspector
             const sessSelect = document.getElementById('session-select');
             sessSelect.innerHTML = '';
             const sessions = u.sessions || {};

@@ -3,44 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HilmanAI - Geliştirici API Hub (/api)</title>
+    <title>HilmanAI - Geliştirici API Portalı (/api)</title>
+    <link rel="icon" type="image/png" href="/static/logo.png">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/atom-one-dark.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 10000;
+        }
+        .square-modal {
+            background: #14161c;
+            border: 1px solid rgba(0, 242, 254, 0.4);
+            border-radius: 24px;
+            width: 90%;
+            max-width: 440px;
+            padding: 30px;
+            box-shadow: 0 25px 80px rgba(0, 0, 0, 0.9), 0 0 35px rgba(0, 242, 254, 0.15);
+        }
+        .key-badge {
+            background: #1a1d24;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.88rem;
+        }
+    </style>
 </head>
 <body style="background: #08090b; padding: 40px 20px; overflow-y: auto;">
-    <div style="max-width: 920px; margin: 0 auto;">
+    <div style="max-width: 960px; margin: 0 auto;">
         
         <!-- Header -->
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 30px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 20px; flex-wrap: wrap; gap: 16px;">
             <div style="display: flex; align-items: center; gap: 14px;">
-                <img src="https://api.dicebear.com/7.x/bottts/svg?seed=HilmanAI" style="width: 44px; height: 44px; border-radius: 50%; box-shadow: 0 0 20px rgba(0,242,254,0.5);" alt="HilmanAI">
+                <img src="/static/logo.png" style="width: 48px; height: 48px; border-radius: 50%; box-shadow: 0 0 20px rgba(0,242,254,0.5); object-fit: cover;" alt="HilmanAI">
                 <div>
                     <h1 style="font-family: 'Outfit', sans-serif; font-size: 1.6rem; font-weight: 800; color: #fff;">HilmanAI Developer API Hub</h1>
-                    <div style="font-size: 0.8rem; color: #00f2fe;">⚡ Universal Model Gateway & SDK Documentation</div>
+                    <div style="font-size: 0.8rem; color: #00f2fe;">⚡ Universal Multi-Project API Management</div>
                 </div>
             </div>
-            <a href="/" style="color: #c4c7c5; text-decoration: none; font-size: 0.85rem; padding: 8px 16px; background: rgba(255,255,255,0.05); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">← Ana Ekrana Dön</a>
-        </div>
 
-        <!-- API Key Generator Widget -->
-        <div style="background: #121418; border: 1px solid rgba(0,242,254,0.3); border-radius: 20px; padding: 24px; margin-bottom: 30px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
-                <h3 style="font-family: 'Outfit', sans-serif; color: #fff; margin: 0;">🔑 Canlı API Anahtarı Üretici</h3>
-                <span style="font-size: 0.72rem; background: rgba(52,168,83,0.15); color: #34a853; padding: 3px 10px; border-radius: 10px; font-weight: 700;">● Gateway Aktif</span>
-            </div>
-            <div style="display: flex; gap: 12px;">
-                <input type="text" id="live-api-key" value="hilman-live-8f92a1c7e45b" readonly style="flex: 1; padding: 12px 16px; background: #1a1c22; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #00f2fe; font-family: 'Fira Code', monospace; font-weight: 700; outline: none;">
-                <button onclick="generateNewKey()" style="padding: 12px 20px; background: var(--primary-gradient); border: none; border-radius: 12px; font-weight: 800; cursor: pointer; color: #000;">Yeni Anahtar Üret</button>
+            <!-- Proje Seçici ve Proje Ekle Butonu -->
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <select id="project-select" onchange="onProjectSelectChange()" style="padding: 10px 16px; background: #16181f; border: 1px solid rgba(0,242,254,0.3); border-radius: 12px; color: #fff; font-weight: 700; outline: none; font-size: 0.88rem; cursor: pointer;">
+                    <option value="">Proje Yükleniyor...</option>
+                </select>
+                <button onclick="openNewProjectPrompt()" style="padding: 10px 16px; background: rgba(0,242,254,0.15); border: 1px solid rgba(0,242,254,0.4); color: #00f2fe; font-weight: 800; border-radius: 12px; cursor: pointer; font-size: 0.85rem;">
+                    ➕ Proje Ekle
+                </button>
             </div>
         </div>
 
-        <!-- Python Example -->
+        <!-- Proje ve Kota Kartı -->
+        <div style="background: #121418; border: 1px solid rgba(0,242,254,0.3); border-radius: 22px; padding: 24px; margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+                <div>
+                    <span style="font-size: 0.75rem; color: #8e918f; font-weight: 700;">AKTİF PROJE</span>
+                    <h2 id="active-project-name" style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; color: #fff; margin-top: 4px;">Varsayılan Proje</h2>
+                </div>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <span id="shared-quota-badge" style="background: rgba(52,168,83,0.15); color: #34a853; border: 1px solid rgba(52,168,83,0.3); padding: 6px 14px; border-radius: 12px; font-weight: 800; font-size: 0.82rem;">
+                        ⚡ Ortak Hesap Kotası: 1000 İstek
+                    </span>
+                    <button onclick="openCreateKeyModal()" style="padding: 10px 18px; background: var(--primary-gradient); border: none; border-radius: 12px; font-weight: 800; cursor: pointer; color: #000; font-size: 0.88rem;">
+                        🔑 API Key Oluştur
+                    </button>
+                </div>
+            </div>
+
+            <!-- Projeye Ait API Key Listesi -->
+            <div style="font-size: 0.8rem; color: #8e918f; font-weight: 700; margin-bottom: 10px;">PROJE API ANAHTARLARI (SABİT)</div>
+            <div id="project-keys-container">
+                <div style="color: #7d8590; font-size: 0.85rem; padding: 12px; border: 1px dashed rgba(255,255,255,0.1); border-radius: 12px; text-align: center;">
+                    Bu projeye ait henüz API Key bulunmuyor. Yukarıdan "API Key Oluştur" butonuna basarak ekleyin.
+                </div>
+            </div>
+        </div>
+
+        <!-- Python Entegrasyon Rehberi -->
         <div style="background: #121418; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px; margin-bottom: 24px;">
             <h3 style="font-family: 'Outfit', sans-serif; color: #00f2fe; margin-bottom: 12px;">🐍 Python ile HilmanAI Entegrasyonu</h3>
-            <p style="color: #8e918f; font-size: 0.85rem; margin-bottom: 14px;">HilmanAI API'sini kendi Python projelerinizde çağırmak için aşağıdaki kodu kullanabilirsiniz:</p>
-            <pre><code class="language-python"># HilmanAI Universal API Gateway
-hilman_api_key = "hilman-live-8f92a1c7e45b"
+            <pre><code id="python-snippet" class="language-python"># HilmanAI Universal API Gateway
+hilman_api_key = "hilman-live-xxxxxxxx"
 model = "hilman-v1-beta"
 
 import requests
@@ -64,10 +120,10 @@ response = requests.post(url, json=payload, headers=headers)
 print(response.json())</code></pre>
         </div>
 
-        <!-- JavaScript / Node Example -->
-        <div style="background: #121418; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px; margin-bottom: 24px;">
+        <!-- JavaScript / Node.js -->
+        <div style="background: #121418; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px;">
             <h3 style="font-family: 'Outfit', sans-serif; color: #9b72cb; margin-bottom: 12px;">⚡ Node.js / JavaScript (Fetch)</h3>
-            <pre><code class="language-javascript">const hilman_api_key = "hilman-live-8f92a1c7e45b";
+            <pre><code id="js-snippet" class="language-javascript">const hilman_api_key = "hilman-live-xxxxxxxx";
 const model = "hilman-v1-beta";
 
 async function askHilman() {
@@ -79,7 +135,7 @@ async function askHilman() {
         },
         body: JSON.stringify({
             model: model,
-            messages: [{ role: "user", content: "React 19 ile modern bir dashboard örneği yaz." }]
+            messages: [{ role: "user", content: "Kuantum fiziği nedir?" }]
         })
     });
     const data = await res.json();
@@ -89,27 +145,273 @@ async function askHilman() {
 askHilman();</code></pre>
         </div>
 
-        <!-- cURL Example -->
-        <div style="background: #121418; border: 1px solid rgba(255,255,255,0.1); border-radius: 20px; padding: 24px;">
-            <h3 style="font-family: 'Outfit', sans-serif; color: #34a853; margin-bottom: 12px;">🌐 cURL Komut Satırı</h3>
-            <pre><code class="language-bash">curl -X POST "https://hilmanbey-hilmanai-v1-beta.hf.space/api/v1/chat" \
-     -H "Content-Type: application/json" \
-     -H "Authorization: Bearer hilman-live-8f92a1c7e45b" \
-     -d '{
-       "model": "hilman-v1-beta",
-       "messages": [{"role": "user", "content": "Kuantum fiziği nedir?"}]
-     }'</code></pre>
-        </div>
+    </div>
 
+    <!-- KARE API KEY OLUŞTURMA MODALI (SQUARE POPUP) -->
+    <div id="key-modal" class="modal-overlay">
+        <div class="square-modal">
+            <h3 style="font-family: 'Outfit', sans-serif; color: #fff; font-size: 1.3rem; margin-bottom: 8px;">🔑 Yeni API Key Oluştur</h3>
+            <p style="color: #8e918f; font-size: 0.85rem; margin-bottom: 20px;">Bu anahtar seçili projenin ortak kotasını kullanacaktır.</p>
+
+            <div style="margin-bottom: 16px;">
+                <label style="font-size: 0.78rem; color: #c4c7c5; font-weight: 700; display: block; margin-bottom: 6px;">ANAHTAR İSMİ</label>
+                <input type="text" id="modal-key-name" placeholder="Örn: Backend API Key" style="width: 100%; padding: 12px 14px; background: #1a1c22; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; outline: none;">
+            </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="font-size: 0.78rem; color: #c4c7c5; font-weight: 700; display: block; margin-bottom: 6px;">GEÇERLİLİK TARİHİ (EXPIRATION)</label>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <input type="date" id="modal-exp-date" style="flex: 1; padding: 10px 12px; background: #1a1c22; border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; color: #fff; outline: none;">
+                </div>
+                <label style="display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 0.82rem; color: #00f2fe; cursor: pointer;">
+                    <input type="checkbox" id="modal-exp-never" checked onchange="toggleNeverExpire()" style="accent-color: #00f2fe; cursor: pointer;">
+                    <span>Sınırsız (Never Expire)</span>
+                </label>
+            </div>
+
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeCreateKeyModal()" style="flex: 1; padding: 12px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); color: #fff; font-weight: 700; border-radius: 12px; cursor: pointer;">İptal</button>
+                <button onclick="submitCreateKey()" style="flex: 2; padding: 12px; background: var(--primary-gradient); border: none; border-radius: 12px; font-weight: 800; cursor: pointer; color: #000;">Oluştur</button>
+            </div>
+        </div>
     </div>
 
     <script>
-        hljs.highlightAll();
+        let currentUserEmail = "";
+        let userProjects = {};
+        let activeProjectId = "";
 
-        function generateNewKey() {
-            const rand = Array.from(crypto.getRandomValues(new Uint8Array(8)))
-                .map(b => b.toString(16).padStart(2, '0')).join('');
-            document.getElementById('live-api-key').value = `hilman-live-${rand}`;
+        window.addEventListener('DOMContentLoaded', async () => {
+            const saved = localStorage.getItem('hilman_user');
+            if (saved) {
+                try {
+                    const u = JSON.parse(saved);
+                    currentUserEmail = u.email;
+                } catch(e) {}
+            }
+            if (!currentUserEmail) {
+                currentUserEmail = "guest@hilmanai.com";
+            }
+            await loadProjects();
+        });
+
+        async function loadProjects() {
+            try {
+                const res = await fetch(`/api/projects?email=${encodeURIComponent(currentUserEmail)}`);
+                const data = await res.json();
+                if (data.success) {
+                    userProjects = data.projects || {};
+                    const isVip = data.is_vip;
+                    const quota = data.quota;
+                    
+                    const badge = document.getElementById('shared-quota-badge');
+                    if (isVip) {
+                        badge.innerText = "👑 Sınırsız VIP Hesabı";
+                        badge.style.color = "#9b72cb";
+                        badge.style.borderColor = "rgba(155,114,203,0.4)";
+                        badge.style.background = "rgba(155,114,203,0.15)";
+                    } else {
+                        badge.innerText = `⚡ Ortak Hesap Kotası: ${quota} İstek`;
+                    }
+
+                    renderProjectSelect();
+                }
+            } catch(e) {
+                console.error("Projeler yüklenemedi:", e);
+            }
+        }
+
+        function renderProjectSelect() {
+            const select = document.getElementById('project-select');
+            select.innerHTML = '';
+            const pKeys = Object.keys(userProjects);
+            
+            if (pKeys.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = "";
+                opt.innerText = "Proje Yok";
+                select.appendChild(opt);
+                return;
+            }
+
+            pKeys.forEach(pId => {
+                const opt = document.createElement('option');
+                opt.value = pId;
+                opt.innerText = `📁 ${userProjects[pId].name}`;
+                select.appendChild(opt);
+            });
+
+            if (!activeProjectId || !userProjects[activeProjectId]) {
+                activeProjectId = pKeys[0];
+            }
+            select.value = activeProjectId;
+            renderActiveProject();
+        }
+
+        function onProjectSelectChange() {
+            activeProjectId = document.getElementById('project-select').value;
+            renderActiveProject();
+        }
+
+        function renderActiveProject() {
+            if (!activeProjectId || !userProjects[activeProjectId]) return;
+            const proj = userProjects[activeProjectId];
+            document.getElementById('active-project-name').innerText = proj.name;
+
+            const container = document.getElementById('project-keys-container');
+            const keys = proj.keys || [];
+
+            if (keys.length === 0) {
+                container.innerHTML = `<div style="color: #7d8590; font-size: 0.85rem; padding: 12px; border: 1px dashed rgba(255,255,255,0.1); border-radius: 12px; text-align: center;">Bu projeye ait henüz API Key bulunmuyor. Yukarıdan "API Key Oluştur" butonuna basarak ekleyin.</div>`;
+                updateCodeSnippets("hilman-live-xxxxxxxx");
+                return;
+            }
+
+            container.innerHTML = '';
+            keys.forEach((kObj, idx) => {
+                const item = document.createElement('div');
+                item.className = 'key-badge';
+                const expText = kObj.expires_at === 'never' ? 'Sınırsız' : kObj.expires_at;
+                item.innerHTML = `
+                    <div>
+                        <div style="font-weight: 800; color: #fff; font-size: 0.9rem; margin-bottom: 2px;">${kObj.name}</div>
+                        <div style="color: #00f2fe;">${kObj.key}</div>
+                        <div style="font-size: 0.75rem; color: #8e918f; margin-top: 4px;">Geçerlilik: ${expText} • Oluşturulma: ${kObj.created_at}</div>
+                    </div>
+                    <button onclick="copyToClipboard('${kObj.key}')" style="padding: 8px 14px; background: rgba(0,242,254,0.12); border: 1px solid rgba(0,242,254,0.3); color: #00f2fe; border-radius: 10px; cursor: pointer; font-size: 0.78rem; font-weight: 700;">Kopyala</button>
+                `;
+                container.appendChild(item);
+            });
+
+            updateCodeSnippets(keys[0].key);
+        }
+
+        function updateCodeSnippets(firstKey) {
+            document.getElementById('python-snippet').innerText = `# HilmanAI Universal API Gateway
+hilman_api_key = "${firstKey}"
+model = "hilman-v1-beta"
+
+import requests
+
+url = "https://hilmanbey-hilmanai-v1-beta.hf.space/api/v1/chat"
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {hilman_api_key}",
+}
+payload = {
+    "model": model,
+    "messages": [
+        {"role": "system", "content": "Sen HilmanAI'sın."},
+        {"role": "user", "content": "Merhaba! HilmanAI API ile bağlandım."}
+    ],
+    "temperature": 0.7,
+    "max_tokens": 2048
+}
+
+response = requests.post(url, json=payload, headers=headers)
+print(response.json())`;
+
+            document.getElementById('js-snippet').innerText = `const hilman_api_key = "${firstKey}";
+const model = "hilman-v1-beta";
+
+async function askHilman() {
+    const res = await fetch("https://hilmanbey-hilmanai-v1-beta.hf.space/api/v1/chat", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": \`Bearer \${hilman_api_key}\`
+        },
+        body: JSON.stringify({
+            model: model,
+            messages: [{ role: "user", content: "Kuantum fiziği nedir?" }]
+        })
+    });
+    const data = await res.json();
+    console.log(data.choices[0].message.content);
+}
+
+askHilman();`;
+
+            hljs.highlightAll();
+        }
+
+        async function openNewProjectPrompt() {
+            const name = prompt("Yeni Proje İsmini Girin:");
+            if (!name || !name.trim()) return;
+
+            try {
+                const res = await fetch('/api/projects/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_email: currentUserEmail,
+                        project_name: name.trim()
+                    })
+                });
+                const d = await res.json();
+                if (d.success) {
+                    await loadProjects();
+                    activeProjectId = d.project.id;
+                    renderProjectSelect();
+                }
+            } catch(e) {
+                alert("Proje oluşturulurken bir hata oluştu.");
+            }
+        }
+
+        function openCreateKeyModal() {
+            if (!activeProjectId) {
+                alert("Lütfen önce bir proje seçin veya oluşturun.");
+                return;
+            }
+            document.getElementById('modal-key-name').value = "Production Key";
+            document.getElementById('key-modal').style.display = 'flex';
+        }
+
+        function closeCreateKeyModal() {
+            document.getElementById('key-modal').style.display = 'none';
+        }
+
+        function toggleNeverExpire() {
+            const never = document.getElementById('modal-exp-never').checked;
+            const dateInput = document.getElementById('modal-exp-date');
+            if (never) {
+                dateInput.disabled = true;
+                dateInput.value = "";
+            } else {
+                dateInput.disabled = false;
+            }
+        }
+
+        async function submitCreateKey() {
+            const keyName = document.getElementById('modal-key-name').value.trim() || "API Key";
+            const never = document.getElementById('modal-exp-never').checked;
+            const expDate = never ? "never" : (document.getElementById('modal-exp-date').value || "never");
+
+            try {
+                const res = await fetch('/api/keys/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        user_email: currentUserEmail,
+                        project_id: activeProjectId,
+                        key_name: keyName,
+                        expires_at: expDate
+                    })
+                });
+                const d = await res.json();
+                if (d.success) {
+                    closeCreateKeyModal();
+                    await loadProjects();
+                }
+            } catch(e) {
+                alert("Key üretilirken bir hata oluştu.");
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            alert("API Key kopyalandı:\n" + text);
         }
     </script>
 </body>
