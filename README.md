@@ -14,6 +14,12 @@ admin paneli yalnızca admin hesabına görünür.
 - **Gerçek API anahtarları** — hesap başına en fazla 3 `hilman_...` anahtarı, kullanım sayacı
   (`usageCount`) ve son kullanım damgasıyla. OpenAI uyumlu (`/api/v1/chat/completions`) ve
   Gemini uyumlu (`/api/v1/generate-content`) uçlar.
+- **Koruma katmanları** — rate limiting (abuse koruması), kullanıcı kotası + VIP muafiyeti,
+  güvenlik başlıkları (HSTS, nosniff, DENY), istek boyut sınırları, bozuk veriye karşı
+  yedekli JSON storage.
+- **Modern sohbet UX'i** — takip sorusu çipleri, markdown tablo renderi, kod kopyalama +
+  canlı önizleme, yanıt süresi göstergesi, tarih gruplu kenar çubuğu, sohbet arama,
+  dışa aktarma (md/txt/json).
 - **Otonom çekirdek** — harici LLM anahtarı yoksa bile çalışan çevrimdışı zekâ + canlı web
   araştırması (DuckDuckGo), Pollinations ile resim, sinematik video stüdyosu.
 - **Render'a hazır** — `render.yaml` Blueprint + `Dockerfile` + `/api/health` sağlık kontrolü.
