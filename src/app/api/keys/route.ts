@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hilmanStorage } from "@/lib/storage";
 import { getSessionUser, unauthorized } from "@/lib/auth";
+import { checkRateLimit, RATE_PROFILES } from "@/lib/rate-limit";
 
 function sanitize(keys: ReturnType<typeof hilmanStorage.getApiKeys>) {
   return keys.map((k) => ({
@@ -29,6 +30,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const limited = checkRateLimit(req, RATE_PROFILES.keysWrite);
+  if (limited) return limited;
   const session = getSessionUser(req);
   if (!session) return unauthorized();
   try {
@@ -44,6 +47,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const limited = checkRateLimit(req, RATE_PROFILES.keysWrite);
+  if (limited) return limited;
   const session = getSessionUser(req);
   if (!session) return unauthorized();
   try {

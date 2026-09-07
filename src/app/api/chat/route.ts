@@ -14,6 +14,7 @@ import {
 } from "@/lib/constants";
 import { generateHilmanAutonomousResponse } from "@/lib/hilman-engine";
 import { getSessionUser, unauthorized, forbidden } from "@/lib/auth";
+import { checkRateLimit, RATE_PROFILES } from "@/lib/rate-limit";
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -21,6 +22,8 @@ function generateId(): string {
 
 export async function POST(req: NextRequest) {
   const startTime = Date.now();
+  const limited = checkRateLimit(req, RATE_PROFILES.chat);
+  if (limited) return limited;
   try {
     const body = await req.json();
     const {
@@ -56,6 +59,17 @@ export async function POST(req: NextRequest) {
 
     const actorEmail = session?.email || keyOwner || "api-user";
     const isAdmin = !!session?.isAdmin;
+
+    // Kota: tanımlıysa ve VIP değilse uygula (admin/API anahtarı muaf)
+    if (session && !isAdmin && !extractedKey) {
+      const quotaUser = hilmanStorage.getUser(actorEmail);
+      if (quotaUser && quotaUser.quota != null && !quotaUser.isVip && quotaUser.quota <= 0) {
+        return NextResponse.json(
+          { success: false, error: "Sohbet kotanız doldu. Kota artırmak için yöneticiyle iletişime geçin." },
+          { status: 429 }
+        );
+      }
+    }
 
     if (!userContent || typeof userContent !== "string" || !userContent.trim()) {
       return NextResponse.json(
@@ -174,6 +188,7 @@ export async function POST(req: NextRequest) {
       tokensUsed,
       latencyMs,
       searchResults: autoResp.searchResults || null,
+      followUps: autoResp.followUps || null,
       isError: false,
     });
 
@@ -183,6 +198,11 @@ export async function POST(req: NextRequest) {
       model,
       provider: "hilman-engine",
     });
+
+    // 7. Kota düş (tanımlıysa)
+    if (session && !isAdmin && !extractedKey) {
+      hilmanStorage.decrementQuota(actorEmail);
+    }
 
     return NextResponse.json({
       success: true,

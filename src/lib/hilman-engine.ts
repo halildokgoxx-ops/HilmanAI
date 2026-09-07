@@ -23,6 +23,7 @@ export interface EngineResponse {
   videoUrl?: string | null;
   mediaType?: "text" | "image" | "video" | "vision";
   searchResults?: SearchResultItem[] | null;
+  followUps?: string[];
   codeSnippet?: {
     code: string;
     language: string;
@@ -1073,6 +1074,33 @@ HilmanAI olarak ben de benzer ileri düzey yapay zeka mimarilerini kullanıyorum
   };
 }
 
+// Takip sorusu önerileri (tek tıkla derinleşme)
+function buildFollowUps(userPrompt: string, category: RequestCategory): string[] {
+  const clean = userPrompt.replace(/[?.,!]+$/g, "").trim();
+  const short = clean.length > 32 ? clean.slice(0, 32).trim() + "…" : clean;
+
+  if (category === "image") {
+    return [`${short} — farklı tarzda çiz`, "Gece/sinematik versiyon", "Dikey portre versiyonu"];
+  }
+  if (category === "video") {
+    return ["Farklı bir sahne öner", "Posteri yüksek çözünürlük açıkla", "Sahneye müzik-mood öner"];
+  }
+  if (category === "vision") {
+    return ["Görseldeki metinleri çıkar", "Tasarım iyileştirme öner", "Bunu koda dök"];
+  }
+  if (category === "code") {
+    return ["Hata durumlarını ekle", "Adım adım açıkla", "Test senaryosu yaz"];
+  }
+  const lower = normalizeTr(clean);
+  if (lower.includes("nedir") || lower.includes("ne demek") || lower.includes("tanim")) {
+    return [`${short} — örneklerle açıkla`, "Artıları ve eksileri neler?", "Özet çıkar"];
+  }
+  if (lower.includes("nasil") || lower.includes("tavsiye") || lower.includes("oneri") || lower.includes("plan")) {
+    return ["Adım adım plan çıkar", "Yaygın hatalar neler?", "Kontrol listesi hazırla"];
+  }
+  return [`${short} — derine in`, "Örnek ver", "Özetle"];
+}
+
 // ==================== 5. ANA MOTOR FONKSİYONU ====================
 
 export async function generateHilmanAutonomousResponse(
@@ -1102,6 +1130,7 @@ export async function generateHilmanAutonomousResponse(
       tokensUsed: 220,
       imageUrl,
       mediaType: "image",
+      followUps: buildFollowUps(userPrompt, "image"),
     };
   }
 
@@ -1125,6 +1154,7 @@ export async function generateHilmanAutonomousResponse(
       imageUrl: posterUrl,
       videoUrl: videoUrl,
       mediaType: "video",
+      followUps: buildFollowUps(userPrompt, "video"),
     };
   }
 
@@ -1148,6 +1178,7 @@ export async function generateHilmanAutonomousResponse(
       reasoning: mode === "düşünen" ? "Görsel özellikleri, kontrast ve kompozisyon derinlemesine tarandı." : "",
       tokensUsed: 350,
       mediaType: "vision",
+      followUps: buildFollowUps(userPrompt, "vision"),
     };
   }
 
@@ -1262,6 +1293,7 @@ export async function generateHilmanAutonomousResponse(
     tokensUsed: Math.max(80, Math.floor(finalContent.length / 3)),
     mediaType: "text",
     searchResults,
+    followUps: buildFollowUps(userPrompt, isCode ? "code" : "general"),
     codeSnippet,
   };
 }

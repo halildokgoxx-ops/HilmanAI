@@ -6,9 +6,12 @@ import {
   isAdminEmail,
 } from "@/lib/auth";
 import { hilmanStorage } from "@/lib/storage";
+import { checkRateLimit, RATE_PROFILES } from "@/lib/rate-limit";
 
 /** POST { idToken } -> Google doğrulaması + session cookie */
 export async function POST(req: NextRequest) {
+  const limited = checkRateLimit(req, RATE_PROFILES.auth);
+  if (limited) return limited;
   try {
     const body = await req.json().catch(() => ({}));
     const idToken = typeof body.idToken === "string" ? body.idToken : "";

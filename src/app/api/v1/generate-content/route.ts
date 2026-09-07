@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { hilmanStorage } from "@/lib/storage";
 import { generateHilmanAutonomousResponse } from "@/lib/hilman-engine";
+import { checkRateLimit, RATE_PROFILES } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
+  const limited = checkRateLimit(req, RATE_PROFILES.v1);
+  if (limited) return limited;
   try {
     const body = await req.json().catch(() => ({}));
     const authHeader = req.headers.get("authorization");

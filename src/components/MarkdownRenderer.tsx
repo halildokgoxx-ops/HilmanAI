@@ -80,6 +80,12 @@ function renderBlocks(markdown: string): React.ReactNode[] {
   });
 }
 
+function splitRow(row: string): string[] {
+  // Baştaki/sondaki | işaretini at, hücrelere böl (kaçışlı \| korunur)
+  const inner = row.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return inner.split(/(?<!\\)\|/).map((c) => c.replace(/\\\|/g, "|").trim());
+}
+
 function ParagraphBlock({ text }: { text: string }) {
   const lines = text.split("\n");
   const elements: React.ReactNode[] = [];
@@ -112,6 +118,54 @@ function ParagraphBlock({ text }: { text: string }) {
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     const trimmed = line.trim();
+
+    // Markdown Table (| başlık | ... + | --- | ayırıcı)
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const nextLine = (lines[i + 1] || "").trim();
+      if (/^\|[\s:\-|]+\|$/.test(nextLine) && nextLine.includes("-")) {
+        flushList();
+        const headerCells = splitRow(trimmed);
+        const bodyRows: string[][] = [];
+        let j = i + 2;
+        while (j < lines.length) {
+          const rl = lines[j].trim();
+          if (!rl.startsWith("|") || !rl.endsWith("|")) break;
+          bodyRows.push(splitRow(rl));
+          j++;
+        }
+        elements.push(
+          <div key={`tbl-${i}`} className="my-3 overflow-x-auto rounded-xl border border-white/10">
+            <table className="w-full text-xs md:text-[13px] border-collapse bg-white/[0.02]">
+              <thead>
+                <tr className="bg-emerald-500/10">
+                  {headerCells.map((c, ci) => (
+                    <th
+                      key={ci}
+                      className="px-3 py-2 text-left font-semibold text-emerald-300 border-b border-white/10 whitespace-nowrap"
+                    >
+                      {formatInline(c)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bodyRows.map((row, ri) => (
+                  <tr key={ri} className={ri % 2 === 1 ? "bg-white/[0.02]" : undefined}>
+                    {row.map((c, ci) => (
+                      <td key={ci} className="px-3 py-2 text-slate-200 border-b border-white/5 align-top">
+                        {formatInline(c)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        i = j - 1;
+        continue;
+      }
+    }
 
     // Headers
     if (trimmed.startsWith("### ")) {

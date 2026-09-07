@@ -56,6 +56,7 @@ export async function addMessage(msg: {
   tokensUsed?: number | null;
   latencyMs?: number | null;
   searchResults?: Array<{ title: string; snippet: string; url: string }> | null;
+  followUps?: string[] | null;
   isError?: boolean;
 }): Promise<MessageData> {
   return hilmanStorage.addMessage(msg);

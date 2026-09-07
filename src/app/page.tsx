@@ -542,6 +542,28 @@ export default function HilmanChatPage() {
                 );
               })}
 
+              {/* Takip soruları (son asistan yanıtının altında) */}
+              {!isLoading &&
+                (() => {
+                  const lastAssistant = [...messages]
+                    .reverse()
+                    .find((m) => m.role === "assistant" && m.followUps && m.followUps.length > 0);
+                  if (!lastAssistant?.followUps) return null;
+                  return (
+                    <div className="px-3 md:px-6 pb-3 flex flex-wrap gap-2">
+                      {lastAssistant.followUps.slice(0, 3).map((fu, i) => (
+                        <button
+                          key={i}
+                          onClick={() => handleSendMessage(fu)}
+                          className="px-3 py-1.5 rounded-full text-xs text-cyan-300 bg-cyan-500/10 hover:bg-cyan-500/20 border border-cyan-500/25 transition-colors"
+                        >
+                          {fu}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })()}
+
               {/* Typing / Generating Loader */}
               {isLoading && (
                 <div className="flex gap-4 py-5 px-3 md:px-6 bg-[#111319]/70 border-y border-white/[0.03]">

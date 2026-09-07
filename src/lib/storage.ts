@@ -81,6 +81,7 @@ export interface MessageData {
   tokensUsed?: number | null;
   latencyMs?: number | null;
   searchResults?: Array<{ title: string; snippet: string; url: string }> | null;
+  followUps?: string[] | null; // tek tıkla takip soruları
   isError: boolean;
   createdAt: string;
 }
@@ -350,8 +351,16 @@ class HilmanStorage {
     );
   }
 
-  public setUserQuota(email: string, quota: number, isVip?: boolean): boolean {
+  /** Sohbet kotasından 1 düşürür. Kotasız (null) kullanıcıda hiçbir şey yapmaz. */
+  public decrementQuota(email: string): void {
     const data = this.read();
+    const user = (data.users || []).find((u) => u.email === email.trim().toLowerCase());
+    if (!user || user.quota == null || user.isVip) return;
+    user.quota = Math.max(0, user.quota - 1);
+    this.write(data);
+  }
+
+  public setUserQuota(email: string, quota: number, isVip?: boolean): boolean {    const data = this.read();
     const user = (data.users || []).find((u) => u.email === email.trim().toLowerCase());
     if (!user) return false;
     user.quota = quota;
@@ -543,6 +552,7 @@ class HilmanStorage {
       tokensUsed: msg.tokensUsed || null,
       latencyMs: msg.latencyMs || null,
       searchResults: msg.searchResults || null,
+      followUps: msg.followUps || null,
       isError: !!msg.isError,
       createdAt: new Date().toISOString(),
     };

@@ -204,6 +204,11 @@ export function ChatMessage({
                 </span>
               )}
               <span className="text-[11px] text-slate-500">{formattedTime}</span>
+              {!isUser && !!message.latencyMs && (
+                <span className="text-[10px] font-mono text-slate-500">
+                  {(message.latencyMs / 1000).toFixed(1)}sn
+                </span>
+              )}
             </div>
 
             {/* Quick Actions for Assistant message */}
