@@ -3,8 +3,8 @@ import { pgTable, text, timestamp, boolean, integer } from "drizzle-orm/pg-core"
 export const conversations = pgTable("conversations", {
   id: text("id").primaryKey(),
   title: text("title").notNull().default("Yeni Sohbet"),
-  model: text("model").notNull().default("HilmanBey/HilmanAI-V1-Beta-Zirve-GGUF"),
-  provider: text("provider").notNull().default("huggingface"),
+  model: text("model").notNull().default("hilmanai-v1-beta"),
+  provider: text("provider").notNull().default("hilman-engine"),
   systemPrompt: text("system_prompt"),
   isPinned: boolean("is_pinned").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
@@ -29,12 +29,12 @@ export const messages = pgTable("messages", {
 
 export const appSettings = pgTable("app_settings", {
   id: text("id").primaryKey().default("default"),
-  activeProvider: text("active_provider").notNull().default("huggingface"),
+  activeProvider: text("active_provider").notNull().default("hilman-engine"),
   hfToken: text("hf_token").notNull().default(""),
   groqApiKey: text("groq_api_key"),
   openrouterApiKey: text("openrouter_api_key"),
   customEndpoint: text("custom_endpoint"),
-  defaultModel: text("default_model").notNull().default("HilmanBey/HilmanAI-V1-Beta-Zirve-GGUF"),
+  defaultModel: text("default_model").notNull().default("hilmanai-v1-beta"),
   temperature: text("temperature").notNull().default("0.7"),
   maxTokens: integer("max_tokens").notNull().default(2048),
   systemPrompt: text("system_prompt"),

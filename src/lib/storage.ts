@@ -18,7 +18,7 @@ export interface HilmanUser {
   email: string; // küçük harf, birincil anahtar
   name: string;
   picture?: string | null;
-  personalPrompt?: string; // kullanıcıya özel talimat (ChatGPT custom instructions gibi)
+  personalPrompt?: string; // kullanıcıya özel talimat (HilmanAI kişisel komutları gibi)
   quota?: number; // kalan sohbet hakkı (opsiyonel, tanımsızsa sınırsız)
   isVip?: boolean;
   createdAt: string;
@@ -42,7 +42,7 @@ export interface AppSettingsData {
   temperature: string;
   maxTokens: number;
   systemPrompt: string;       // Admin-only global core prompt
-  personalPrompt: string;     // User-specific custom instruction (ChatGPT/Gemini style)
+  personalPrompt: string;     // User-specific custom instruction (HilmanAI style)
   reasoningDepth: "standard" | "deep" | "extreme";
   contextWindow: "32k" | "64k" | "128k";
   codeOptimization: boolean;

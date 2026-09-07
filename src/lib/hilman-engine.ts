@@ -217,6 +217,41 @@ function translatePrompt(turkishPrompt: string): string {
   return `${cleanOrig}, cinematic lighting, photorealistic, ultra detailed, 8k resolution, masterpiece`;
 }
 
+// Harici LLM bazen kendi altyapı adını ağzından kaçırır
+// ("ben Qwen'im", "I am Meta AI"...). Yalnızca BİRİNCİL ŞAHIS kimlik
+// iddialarını HilmanAI ile değiştirir; kullanıcı bir modeli SORDUĞUNDA
+// verilen eğitici bilgiler (DeepSeek nedir vb.) aynen korunur.
+function enforceHilmanIdentity(text: string): string {
+  if (!text) return text;
+  // Sürüm eklerini de yut (Qwen2.5), ama cümle sonundaki tek noktayı bırak:
+  // V = isteğe bağlı "kelime(.kelime)*" kuyruğu
+  const V = String.raw`(?:\w+(?:\.\w+)*)?`;
+  // T = arkadan gelen sürüm no ("Llama 3.1" -> tamamı yutulur)
+  const T = String.raw`(?:\s+\d+(?:\.\d+)*)?`;
+  const fixCase = (m: string) =>
+    /[A-ZÇĞİÖŞÜ]/.test(m.charAt(0)) && m.charAt(0) === m.charAt(0).toUpperCase()
+      ? "Ben HilmanAI"
+      : "ben HilmanAI";
+  let out = text;
+  // Türkçe: "ben Qwen'im / ben bir DeepSeek modeliyim / ben OpenAI tarafından..."
+  out = out.replace(
+    new RegExp(
+      String.raw`\b[Bb]en\s+(bir\s+)?(Qwen${V}|DeepSeek${V}|Llama${V}|Mistral${V}|Mixtral${V}|ChatGPT${V}|GPT-?${V}(?:\s+mini)?|Claude${V}|Gemini${V}|Grok${V}|Meta\s*AI|Google(?:\s+(?:Bard|AI))?|OpenAI)${T}\b`,
+      "gi"
+    ),
+    fixCase
+  );
+  // İngilizce: "I am Meta AI / I'm Llama..." (çevirisiz sızan yanıtlar için)
+  out = out.replace(
+    new RegExp(
+      String.raw`\bI(?:'m|\s+am)\s+(an?\s+)?(Meta\s*AI|Llama${V}|Qwen${V}|DeepSeek${V}|Mistral${V}|ChatGPT${V}|GPT-?${V}(?:\s+mini)?|Claude${V}|Gemini${V}|Grok${V}|Google(?:\s+(?:Bard|AI))?|OpenAI)${T}\b`,
+      "gi"
+    ),
+    "I'm HilmanAI"
+  );
+  return out;
+}
+
 // ==================== 3. DIŞ AI SAĞLAYICILARI (HF, GROQ, OPENROUTER) ====================
 
 interface ApiCallResult {
@@ -1105,7 +1140,7 @@ export async function generateHilmanAutonomousResponse(
     );
 
     const replyText = externalRes.success
-      ? externalRes.text
+      ? enforceHilmanIdentity(externalRes.text)
       : `🖼️ **Görsel Analizi Tamamlandı (${fileName})**\n\nYüklediğiniz görsel başarıyla incelendi. Görseldeki düzen, renk hiyerarşisi ve bileşen yapısı HilmanAI Vision tarafından analiz edildi.\n\n### Tespitler:\n- **Görsel Adı:** ${fileName}\n- **Kullanıcı Notu:** "${userPrompt}"\n- **Tavsiye:** Arayüz veya kod entegrasyonu gerektiren bir şablon ise, bunu React/Next.js bileşeni olarak hemen kodlayabilirim.`;
 
     return {
@@ -1180,7 +1215,7 @@ export async function generateHilmanAutonomousResponse(
     (isCorrectionPrompt && externalRes.text.length < 120);
 
   if (externalRes.success && !isHallucinated) {
-    finalContent = externalRes.text;
+    finalContent = enforceHilmanIdentity(externalRes.text);
     finalReasoning = externalRes.reasoning;
   } else {
     // Harici API kotası dolduysa, halüsinasyon gördüyse veya çevrimdışıysa -> Doğrulanmış Otonom Çekirdek

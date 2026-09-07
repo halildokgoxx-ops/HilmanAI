@@ -420,12 +420,12 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
                     />
                   </div>
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-[11px] text-slate-400">Hugging Face Model / GGUF Linki</label>
+                    <label className="text-[11px] text-slate-400">Model / GGUF Sayfa Bağlantısı</label>
                     <input
                       type="text"
                       value={newModelHfLink}
                       onChange={(e) => setNewModelHfLink(e.target.value)}
-                      placeholder="https://huggingface.co/HilmanBey/..."
+                      placeholder="Model ağırlık sayfasının bağlantısı (opsiyonel)"
                       className="w-full bg-[#13151b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
                     />
                   </div>
