@@ -78,6 +78,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Boyut koruması (bellek şişmesini önle)
+    if (userContent.length > 20000) {
+      return NextResponse.json(
+        { success: false, error: "Mesaj çok uzun (en fazla 20.000 karakter)." },
+        { status: 413 }
+      );
+    }
+    if (attachedFile?.content && attachedFile.content.length > 15 * 1024 * 1024) {
+      return NextResponse.json(
+        { success: false, error: "Dosya çok büyük (en fazla ~10MB)." },
+        { status: 413 }
+      );
+    }
+
     const settings = await getOrCreateSettings();
     const model = incomingModel || settings.defaultModel || "hilmanai-v1-beta";
     const activeMode: ChatModeId = (incomingMode as ChatModeId) || "düşünen";

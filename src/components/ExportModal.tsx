@@ -21,18 +21,24 @@ export function ExportModal({
 
   if (!isOpen) return null;
 
-  const title = conversation?.title || "Hilman AI Sohbeti";
+  const title = conversation?.title || "HilmanAI Sohbeti";
 
   const getMarkdownText = () => {
     let md = `# ${title}\n`;
-    md += `*Hilman AI Sohbet Kaydı - ${new Date().toLocaleDateString("tr-TR")}*\n\n---\n\n`;
+    md += `*HilmanAI Sohbet Kaydı - ${new Date().toLocaleDateString("tr-TR")}*\n\n---\n\n`;
     for (const msg of messages) {
-      const sender = msg.role === "user" ? "👤 Siz" : "🤖 Hilman AI";
+      const sender = msg.role === "user" ? "👤 Siz" : "🤖 HilmanAI";
       const time = new Date(msg.createdAt).toLocaleTimeString("tr-TR", {
         hour: "2-digit",
         minute: "2-digit",
       });
       md += `### ${sender} (${time})\n\n${msg.content}\n\n`;
+      if ((msg as any).imageUrl) {
+        md += `![Üretilen görsel](${(msg as any).imageUrl})\n\n`;
+      }
+      if ((msg as any).videoUrl) {
+        md += `🎬 Video: ${(msg as any).videoUrl}\n\n`;
+      }
       if (msg.reasoning) {
         md += `> **Düşünce Süreci:**\n> ${msg.reasoning.replace(/\n/g, "\n> ")}\n\n`;
       }
@@ -46,7 +52,7 @@ export function ExportModal({
     text += `Tarih: ${new Date().toLocaleString("tr-TR")}\n`;
     text += `=========================================\n\n`;
     for (const msg of messages) {
-      const sender = msg.role === "user" ? "KULLANICI" : "HILMAN AI";
+      const sender = msg.role === "user" ? "KULLANICI" : "HILMANAI";
       text += `[${sender}]:\n${msg.content}\n\n`;
     }
     return text;
