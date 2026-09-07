@@ -38,6 +38,8 @@ export interface AuthUser {
   name: string;
   picture?: string | null;
   isAdmin: boolean;
+  quota?: number | null;
+  isVip?: boolean;
 }
 
 export default function HilmanChatPage() {
@@ -265,6 +267,14 @@ export default function HilmanChatPage() {
         }
 
         setMessages((prev) => [...prev, data.message]);
+
+        // Kota göstergesini güncel tut
+        fetch("/api/auth/me")
+          .then((r) => r.json())
+          .then((md) => {
+            if (md.success && md.user) setUser(md.user);
+          })
+          .catch(() => {});
 
         // Auto-detect code in assistant reply and open live preview panel
         const codeMatch = data.message.content.match(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/);

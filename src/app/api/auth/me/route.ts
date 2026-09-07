@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
       name: stored?.name || session.name,
       picture: stored?.picture || session.picture || null,
       isAdmin: session.isAdmin,
+      quota: stored?.quota ?? null,
+      isVip: !!stored?.isVip,
     },
   });
 }

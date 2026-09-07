@@ -236,6 +236,22 @@ export function Header({
           <Settings className="w-4 h-4" />
         </button>
 
+        {/* Quota chip (kota tanımlıysa) */}
+        {user && user.quota != null && !user.isVip && (
+          <span
+            className={`hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-mono border ${
+              user.quota <= 0
+                ? "bg-red-500/10 text-red-300 border-red-500/30"
+                : user.quota <= 10
+                ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
+                : "bg-white/[0.04] text-slate-300 border-white/10"
+            }`}
+            title="Kalan sohbet hakkınız"
+          >
+            {user.quota} hak
+          </span>
+        )}
+
         {/* User chip */}
         {user && (
           <div className="relative" ref={userMenuRef}>
