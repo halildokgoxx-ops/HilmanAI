@@ -19,8 +19,9 @@ import {
   ExternalLink,
   Calendar,
   Sparkles,
+  Users,
 } from "lucide-react";
-import type { MessageData, CustomModelData } from "@/lib/storage";
+import type { MessageData, CustomModelData, HilmanUser } from "@/lib/storage";
 
 interface AdminPanelModalProps {
   isOpen: boolean;
@@ -29,7 +30,7 @@ interface AdminPanelModalProps {
 }
 
 export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelModalProps) {
-  const [activeTab, setActiveTab] = useState<"messages" | "models" | "system_prompt">("messages");
+  const [activeTab, setActiveTab] = useState<"messages" | "models" | "system_prompt" | "users">("messages");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -61,6 +62,10 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
   const [newModelDesc, setNewModelDesc] = useState("");
   const [newModelBadge, setNewModelBadge] = useState("");
 
+  // Users & Quota State
+  const [users, setUsers] = useState<HilmanUser[]>([]);
+  const [quotaEdits, setQuotaEdits] = useState<Record<string, { quota: string; isVip: boolean }>>({});
+
   // Global System Prompt State
   const [systemPrompt, setSystemPrompt] = useState("");
 
@@ -79,6 +84,8 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
         setMessages(data.messages || []);
         setModels(data.models || []);
         setSystemPrompt(data.systemPrompt || "");
+        setUsers(data.users || []);
+        setQuotaEdits({});
       }
     } catch (err) {
       console.error("Failed to load admin data:", err);
@@ -152,8 +159,33 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
     }
   };
 
-  const handleDeleteModel = async (id: string) => {
-    if (!confirm("Bu modeli kaldırmak istediğinize emin misiniz?")) return;
+  const handleSetQuota = async (email: string) => {
+    const edit = quotaEdits[email];
+    if (!edit) return;
+    const quota = Number(edit.quota);
+    if (!Number.isFinite(quota) || quota < 0) {
+      alert("Geçerli bir kota girin (0 ve üzeri sayı).");
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_quota", email, quota, isVip: edit.isVip }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        loadAdminData();
+      } else {
+        alert(data.error || "Kota güncellenemedi.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Kota güncellenirken bir hata oluştu.");
+    }
+  };
+
+  const handleDeleteModel = async (id: string) => {    if (!confirm("Bu modeli kaldırmak istediğinize emin misiniz?")) return;
     try {
       const res = await fetch("/api/admin", {
         method: "POST",
@@ -252,6 +284,21 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
           >
             <Terminal className="w-4 h-4" />
             <span>Global Sistem Promptu</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("users")}
+            className={`py-3 flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === "users"
+                ? "border-emerald-400 text-emerald-400 font-semibold"
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Users className="w-4 h-4" />
+            <span>Kullanıcılar & Kota</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300">
+              {users.length}
+            </span>
           </button>
         </div>
 
@@ -559,6 +606,89 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
                     </>
                   )}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: KULLANICILAR & KOTA */}
+          {activeTab === "users" && (
+            <div className="space-y-3">
+              <p className="text-xs text-slate-400">
+                Google ile giriş yapan hesaplar. Kota boş bırakılırsa sınırsızdır; 0 ise sohbet
+                engellenir. VIP kullanıcılar kotadan muaftır.
+              </p>
+              {users.length === 0 && (
+                <div className="p-4 text-center text-xs text-slate-500 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
+                  Henüz kayıtlı kullanıcı yok.
+                </div>
+              )}
+              <div className="space-y-2">
+                {users.map((u) => {
+                  const edit = quotaEdits[u.email] || {
+                    quota: u.quota != null ? String(u.quota) : "",
+                    isVip: !!u.isVip,
+                  };
+                  return (
+                    <div
+                      key={u.email}
+                      className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex flex-wrap items-center gap-3"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        {u.picture ? (
+                          <img src={u.picture} alt={u.name} className="w-8 h-8 rounded-lg object-cover shrink-0" />
+                        ) : (
+                          <span className="w-8 h-8 rounded-lg bg-gradient-to-tr from-emerald-500 to-cyan-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                            {u.name.charAt(0).toUpperCase()}
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-white truncate">{u.name}</p>
+                          <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
+                          <p className="text-[10px] text-slate-500">
+                            Son giriş: {new Date(u.lastLoginAt).toLocaleString("tr-TR")}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <input
+                          type="number"
+                          min={0}
+                          value={edit.quota}
+                          onChange={(e) =>
+                            setQuotaEdits((prev) => ({
+                              ...prev,
+                              [u.email]: { quota: e.target.value, isVip: edit.isVip },
+                            }))
+                          }
+                          placeholder="∞"
+                          title="Kota (boş = sınırsız)"
+                          className="w-20 bg-black/40 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-emerald-500"
+                        />
+                        <label className="flex items-center gap-1 text-[11px] text-slate-300 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={edit.isVip}
+                            onChange={(e) =>
+                              setQuotaEdits((prev) => ({
+                                ...prev,
+                                [u.email]: { quota: edit.quota, isVip: e.target.checked },
+                              }))
+                            }
+                            className="accent-amber-500"
+                          />
+                          <span>VIP</span>
+                        </label>
+                        <button
+                          onClick={() => handleSetQuota(u.email)}
+                          className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition-all flex items-center gap-1"
+                        >
+                          <Save className="w-3 h-3" />
+                          <span>Kaydet</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
