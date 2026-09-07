@@ -1,0 +1,569 @@
+"use client";
+
+import React, { useState, useEffect } from "react";
+import {
+  ShieldCheck,
+  X,
+  MessageSquare,
+  Cpu,
+  Terminal,
+  ThumbsUp,
+  ThumbsDown,
+  Trash2,
+  Plus,
+  Save,
+  Check,
+  RotateCcw,
+  Loader2,
+  Layers,
+  ExternalLink,
+  Calendar,
+  Sparkles,
+} from "lucide-react";
+import type { MessageData, CustomModelData } from "@/lib/storage";
+
+interface AdminPanelModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onModelUpdated?: () => void;
+}
+
+export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelModalProps) {
+  const [activeTab, setActiveTab] = useState<"messages" | "models" | "system_prompt">("messages");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Stats & Messages State
+  const [stats, setStats] = useState<{
+    totalMessages: number;
+    userMessagesCount: number;
+    assistantMessagesCount: number;
+    likedCount: number;
+    dislikedCount: number;
+    satisfactionRate: number;
+  }>({
+    totalMessages: 0,
+    userMessagesCount: 0,
+    assistantMessagesCount: 0,
+    likedCount: 0,
+    dislikedCount: 0,
+    satisfactionRate: 100,
+  });
+  const [messages, setMessages] = useState<MessageData[]>([]);
+  const [messageFilter, setMessageFilter] = useState<"all" | "like" | "dislike">("all");
+
+  // Models State
+  const [models, setModels] = useState<CustomModelData[]>([]);
+  const [newModelName, setNewModelName] = useState("");
+  const [newModelId, setNewModelId] = useState("");
+  const [newModelHfLink, setNewModelHfLink] = useState("");
+  const [newModelDesc, setNewModelDesc] = useState("");
+  const [newModelBadge, setNewModelBadge] = useState("");
+
+  // Global System Prompt State
+  const [systemPrompt, setSystemPrompt] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    loadAdminData();
+  }, [isOpen]);
+
+  const loadAdminData = async () => {
+    setIsLoading(true);
+    try {
+      const res = await fetch("/api/admin");
+      const data = await res.json();
+      if (data.success) {
+        setStats(data.stats);
+        setMessages(data.messages || []);
+        setModels(data.models || []);
+        setSystemPrompt(data.systemPrompt || "");
+      }
+    } catch (err) {
+      console.error("Failed to load admin data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveSystemPrompt = async () => {
+    setIsSaving(true);
+    setSavedSuccess(false);
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_system_prompt",
+          systemPrompt,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 2000);
+      } else {
+        alert(data.error || "Hata oluştu.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Sistem promptu güncellenemedi.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleAddModel = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newModelName.trim()) {
+      alert("Lütfen model adı girin.");
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add_model",
+          name: newModelName.trim(),
+          id: newModelId.trim() || undefined,
+          hfLink: newModelHfLink.trim() || undefined,
+          description: newModelDesc.trim() || "Özel HilmanAI Zeka Modeli",
+          badge: newModelBadge.trim() || "Yeni",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setNewModelName("");
+        setNewModelId("");
+        setNewModelHfLink("");
+        setNewModelDesc("");
+        setNewModelBadge("");
+        loadAdminData();
+        if (onModelUpdated) onModelUpdated();
+      } else {
+        alert(data.error || "Model eklenemedi.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Model eklenirken bir hata oluştu.");
+    }
+  };
+
+  const handleDeleteModel = async (id: string) => {
+    if (!confirm("Bu modeli kaldırmak istediğinize emin misiniz?")) return;
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete_model",
+          id,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        loadAdminData();
+        if (onModelUpdated) onModelUpdated();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  const filteredMessages = messages.filter((m) => {
+    if (messageFilter === "like") return m.feedback === "like";
+    if (messageFilter === "dislike") return m.feedback === "dislike";
+    return true;
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-xs">
+      <div className="relative w-full max-w-4xl rounded-2xl bg-[#0e1017] border border-white/10 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header */}
+        <div className="px-5 py-4 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-gradient-to-tr from-indigo-500/20 to-emerald-500/20 border border-indigo-500/30 text-indigo-400">
+              <ShieldCheck className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                <span>HilmanAI Yönetici (Admin) Paneli</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-semibold">
+                  Aktif Yönetim
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400">
+                Kullanıcı mesajlarını, Hilman yanıtlarını, beğenileri, modelleri ve sistem çekirdek promptunu yönetin.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex items-center px-5 border-b border-white/[0.08] bg-white/[0.01] gap-6 text-xs font-medium">
+          <button
+            onClick={() => setActiveTab("messages")}
+            className={`py-3 flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === "messages"
+                ? "border-emerald-400 text-emerald-400 font-semibold"
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            <span>Mesaj İzleme & Geri Bildirimler</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300">
+              {stats.totalMessages}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("models")}
+            className={`py-3 flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === "models"
+                ? "border-emerald-400 text-emerald-400 font-semibold"
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Cpu className="w-4 h-4" />
+            <span>Model Yönetimi (HF / Dinamik)</span>
+            <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300">
+              {models.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("system_prompt")}
+            className={`py-3 flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === "system_prompt"
+                ? "border-emerald-400 text-emerald-400 font-semibold"
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Terminal className="w-4 h-4" />
+            <span>Global Sistem Promptu</span>
+          </button>
+        </div>
+
+        {/* Modal Body */}
+        <div className="p-5 overflow-y-auto space-y-5 text-sm flex-1">
+          {/* TAB 1: MESAJ İZLEME */}
+          {activeTab === "messages" && (
+            <div className="space-y-4">
+              {/* Stat Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <span className="text-[11px] text-slate-400 block">Toplam Mesaj</span>
+                  <span className="text-lg font-bold text-white">{stats.totalMessages}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <span className="text-[11px] text-emerald-400 block flex items-center gap-1">
+                    <ThumbsUp className="w-3 h-3" /> Beğenilenler
+                  </span>
+                  <span className="text-lg font-bold text-emerald-400">{stats.likedCount}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <span className="text-[11px] text-red-400 block flex items-center gap-1">
+                    <ThumbsDown className="w-3 h-3" /> Beğenilmeyenler
+                  </span>
+                  <span className="text-lg font-bold text-red-400">{stats.dislikedCount}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <span className="text-[11px] text-cyan-400 block">Memnuniyet Oranı</span>
+                  <span className="text-lg font-bold text-cyan-300">%{stats.satisfactionRate}</span>
+                </div>
+              </div>
+
+              {/* Message Filter Chips */}
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-xs font-semibold text-slate-300">Hilman & Kullanıcı Mesaj Kayıtları</span>
+                <div className="flex items-center gap-1.5 p-1 rounded-lg bg-black/40 border border-white/5 text-xs">
+                  <button
+                    onClick={() => setMessageFilter("all")}
+                    className={`px-2.5 py-1 rounded-md transition-colors ${
+                      messageFilter === "all"
+                        ? "bg-white/10 text-white font-medium"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    Tümü
+                  </button>
+                  <button
+                    onClick={() => setMessageFilter("like")}
+                    className={`px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 ${
+                      messageFilter === "like"
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <ThumbsUp className="w-3 h-3 text-emerald-400" />
+                    <span>Beğenilen ({stats.likedCount})</span>
+                  </button>
+                  <button
+                    onClick={() => setMessageFilter("dislike")}
+                    className={`px-2.5 py-1 rounded-md transition-colors flex items-center gap-1 ${
+                      messageFilter === "dislike"
+                        ? "bg-red-500/20 text-red-300 border border-red-500/30"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    <ThumbsDown className="w-3 h-3 text-red-400" />
+                    <span>Beğenilmeyen ({stats.dislikedCount})</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Message List */}
+              <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
+                {filteredMessages.length === 0 ? (
+                  <div className="p-8 text-center text-xs text-slate-500 rounded-xl border border-white/5 bg-black/20">
+                    Henüz kayıtlı mesaj bulunmuyor veya seçilen filtreye uygun kayıt yok.
+                  </div>
+                ) : (
+                  filteredMessages.map((m) => {
+                    const isUser = m.role === "user";
+                    return (
+                      <div
+                        key={m.id}
+                        className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 space-y-2 hover:bg-white/[0.04] transition-colors"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                                isUser
+                                  ? "bg-slate-700/60 text-slate-200"
+                                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              }`}
+                            >
+                              {isUser ? "Kullanıcı" : "HilmanAI"}
+                            </span>
+                            <span className="text-[11px] text-slate-500 font-mono">
+                              {new Date(m.createdAt).toLocaleString("tr-TR")}
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {m.feedback === "like" && (
+                              <span className="flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-500/30">
+                                <ThumbsUp className="w-3 h-3" /> Beğenildi
+                              </span>
+                            )}
+                            {m.feedback === "dislike" && (
+                              <span className="flex items-center gap-1 text-[11px] text-red-400 bg-red-950/40 px-2 py-0.5 rounded border border-red-500/30">
+                                <ThumbsDown className="w-3 h-3" /> Beğenilmedi
+                              </span>
+                            )}
+                            {!m.feedback && !isUser && (
+                              <span className="text-[10px] text-slate-500">Nötr</span>
+                            )}
+                          </div>
+                        </div>
+
+                        <p className="text-xs text-slate-200 leading-relaxed whitespace-pre-wrap line-clamp-3">
+                          {m.content}
+                        </p>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: MODEL YÖNETİMİ (HF / DİNAMİK MODEL EKLEME) */}
+          {activeTab === "models" && (
+            <div className="space-y-5">
+              {/* Add Model Form */}
+              <form
+                onSubmit={handleAddModel}
+                className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-3"
+              >
+                <div className="flex items-center gap-2 text-xs font-semibold text-white">
+                  <Plus className="w-4 h-4 text-emerald-400" />
+                  <span>Yeni Hilman Zeka Modeli Ekle (Hugging Face / Özel Link)</span>
+                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Buraya eklediğiniz model anında üst kısımdaki model seçiciye yerleşir ve aktif olarak seçilebilir.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-400">Model Adı *</label>
+                    <input
+                      type="text"
+                      value={newModelName}
+                      onChange={(e) => setNewModelName(e.target.value)}
+                      placeholder="Örn: HilmanAI v2 Pro"
+                      className="w-full bg-[#13151b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-400">Model ID / Kod Adı (Opsiyonel)</label>
+                    <input
+                      type="text"
+                      value={newModelId}
+                      onChange={(e) => setNewModelId(e.target.value)}
+                      placeholder="Örn: hilmanai-v2-pro"
+                      className="w-full bg-[#13151b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] text-slate-400">Hugging Face Model / GGUF Linki</label>
+                    <input
+                      type="text"
+                      value={newModelHfLink}
+                      onChange={(e) => setNewModelHfLink(e.target.value)}
+                      placeholder="https://huggingface.co/HilmanBey/..."
+                      className="w-full bg-[#13151b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500 font-mono text-[11px]"
+                    />
+                  </div>
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-[11px] text-slate-400">Model Açıklaması</label>
+                    <input
+                      type="text"
+                      value={newModelDesc}
+                      onChange={(e) => setNewModelDesc(e.target.value)}
+                      placeholder="Modelin temel kabiliyetleri ve kullanım alanı"
+                      className="w-full bg-[#13151b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-400">Rozet / Etiket</label>
+                    <input
+                      type="text"
+                      value={newModelBadge}
+                      onChange={(e) => setNewModelBadge(e.target.value)}
+                      placeholder="Örn: v2 Ultra, Hızlı, Muhakeme"
+                      className="w-full bg-[#13151b] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      className="w-full py-2 px-4 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Modeli Sisteme Ekle</span>
+                    </button>
+                  </div>
+                </div>
+              </form>
+
+              {/* Existing Models */}
+              <div className="space-y-2">
+                <span className="text-xs font-semibold text-slate-300">Sistemdeki Aktif Modeller</span>
+                <div className="space-y-2">
+                  {models.map((m) => (
+                    <div
+                      key={m.id}
+                      className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-center justify-between gap-3"
+                    >
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-xs text-white">{m.name}</span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-mono">
+                            {m.badge}
+                          </span>
+                          {m.isDefault && (
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-indigo-500/20 text-indigo-300">
+                              Varsayılan Amiral
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400 truncate max-w-lg">{m.description}</p>
+                        {m.hfLink && (
+                          <a
+                            href={m.hfLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] text-emerald-400 hover:underline flex items-center gap-1 font-mono"
+                          >
+                            <ExternalLink className="w-2.5 h-2.5" />
+                            <span>{m.hfLink}</span>
+                          </a>
+                        )}
+                      </div>
+
+                      {!m.isDefault && m.id !== "hilmanai-v1-beta" && (
+                        <button
+                          onClick={() => handleDeleteModel(m.id)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                          title="Modeli Sil"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: GLOBAL SİSTEM PROMPTU */}
+          {activeTab === "system_prompt" && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="font-semibold text-xs text-slate-200 uppercase tracking-wider block">
+                    HilmanAI Global Sistem Çekirdek Promptu
+                  </label>
+                  <p className="text-xs text-slate-400">
+                    Tüm kullanıcı oturumlarında HilmanAI&apos;ın sabit kimliğini, kurallarını ve çalışma prensiplerini belirler.
+                  </p>
+                </div>
+              </div>
+
+              <textarea
+                value={systemPrompt}
+                onChange={(e) => setSystemPrompt(e.target.value)}
+                rows={12}
+                className="w-full bg-[#13151b] text-slate-200 border border-white/10 rounded-xl p-3.5 text-xs font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-emerald-500/50 resize-y"
+              />
+
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-[11px] text-slate-500 font-mono">
+                  {systemPrompt.length} karakter
+                </span>
+                <button
+                  onClick={handleSaveSystemPrompt}
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition-all flex items-center gap-2 shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Kaydediliyor...</span>
+                    </>
+                  ) : savedSuccess ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Kaydedildi!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Sistem Promptunu Güncelle</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

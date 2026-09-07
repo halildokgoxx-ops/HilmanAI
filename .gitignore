@@ -1,7 +1,32 @@
-__pycache__/
-*.pyc
+# HilmanAI — public repo güvenliği: sırlar ve yerel veriler asla commitlenmez
+
+# Bağımlılıklar
+node_modules/
+
+# Next.js derleme çıktıları
+.next/
+out/
+build/
+
+# Ortam değişkenleri (GERÇEK ANAHTARLAR BURADA — repoya eklenmez!)
 .env
-.venv
-env/
-venv/
-users_db.json
+.env*.local
+.env.production
+
+# Yerel JSON veritabanı (kullanıcı geçmişleri, anahtarlar, ayarlar)
+data/*.json
+!data/.gitkeep
+
+# TypeScript / ESLint önbellek
+*.tsbuildinfo
+.eslintcache
+
+# İşletim sistemi / editör
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Loglar
+*.log
+logs/

@@ -1,0 +1,39 @@
+# HilmanAI — Render Blueprint (https://render.com/docs/blueprint-spec)
+# Kullanım: Repo Render'a bağlıyken "New +" -> "Blueprint" -> bu dosya otomatik okunur.
+# Gerekli secret'lar (GOOGLE_CLIENT_ID) ilk deployda Render Dashboard'dan girilir.
+
+services:
+  - type: web
+    name: hilmanai
+    runtime: node
+    plan: free # Kalıcı geçmiş isterseniz starter+ ve aşağıdaki diski açın
+    buildCommand: npm ci && npm run build
+    startCommand: npx next start -p $PORT
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ADMIN_EMAIL
+        value: halildokgox@gmail.com
+      - key: GOOGLE_CLIENT_ID
+        sync: false # Dashboard'dan girilir (gizli tutulur)
+      - key: AUTH_SECRET
+        generateValue: true # Render rastgele üretir, siz de görebilirsiniz
+      - key: DATA_DIR
+        value: /var/hilman-data
+      - key: HF_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+    # Kalıcı disk (ücretli planlarda): JSON veritabanı restart/deploy'da silinmez.
+    # Free planda disk eklenemez — o durumda geçmişler restart'ta sıfırlanır.
+    # Açmak için planı yükseltip aşağıdaki bloğu aktif edin:
+    # disk:
+    #   name: hilman-data
+    #   mountPath: /var/hilman-data
+    #   sizeGB: 1
