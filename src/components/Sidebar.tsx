@@ -58,6 +58,29 @@ export function Sidebar({
   const pinnedConversations = filteredConversations.filter((c) => c.isPinned);
   const unpinnedConversations = filteredConversations.filter((c) => !c.isPinned);
 
+  // Tarih grupları (sabitlenmeyenler için): Bugün / Dün / Son 7 gün / Daha eski
+  const dayStart = (d: Date) => {
+    const x = new Date(d);
+    x.setHours(0, 0, 0, 0);
+    return x.getTime();
+  };
+  const todayStart = dayStart(new Date());
+  const DAY = 24 * 60 * 60 * 1000;
+  const groups: Array<{ label: string; items: typeof unpinnedConversations }> = [
+    { label: "Bugün", items: [] },
+    { label: "Dün", items: [] },
+    { label: "Son 7 Gün", items: [] },
+    { label: "Daha Eski", items: [] },
+  ];
+  for (const c of unpinnedConversations) {
+    const t = new Date(c.updatedAt).getTime();
+    const diff = todayStart - dayStart(new Date(t));
+    if (diff <= 0) groups[0].items.push(c);
+    else if (diff <= DAY) groups[1].items.push(c);
+    else if (diff <= 7 * DAY) groups[2].items.push(c);
+    else groups[3].items.push(c);
+  }
+
   const startRename = (c: Conversation, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingId(c.id);
@@ -159,21 +182,31 @@ export function Sidebar({
             </div>
           )}
 
-          {/* All Conversations */}
-          <div>
-            <div className="px-2 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
-              {pinnedConversations.length > 0 ? "Tüm Sohbetler" : "Geçmiş Sohbetler"}
-            </div>
-            {unpinnedConversations.length === 0 && pinnedConversations.length === 0 ? (
+          {/* Date-grouped Conversations */}
+          {unpinnedConversations.length === 0 && pinnedConversations.length === 0 ? (
+            <div>
+              <div className="px-2 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                Geçmiş Sohbetler
+              </div>
               <div className="px-3 py-6 text-center text-xs text-slate-500">
                 Henüz sohbet bulunmuyor.
               </div>
-            ) : (
-              <div className="space-y-0.5 mt-1">
-                {unpinnedConversations.map((c) => renderItem(c))}
-              </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            groups.map(
+              (g) =>
+                g.items.length > 0 && (
+                  <div key={g.label}>
+                    <div className="px-2 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                      {g.label}
+                    </div>
+                    <div className="space-y-0.5 mt-1">
+                      {g.items.map((c) => renderItem(c))}
+                    </div>
+                  </div>
+                )
+            )
+          )}
         </div>
 
         {/* Footer info & Diagnostics */}
