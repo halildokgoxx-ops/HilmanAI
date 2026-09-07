@@ -43,6 +43,7 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
     likedCount: number;
     dislikedCount: number;
     satisfactionRate: number;
+    totalUsers: number;
   }>({
     totalMessages: 0,
     userMessagesCount: 0,
@@ -50,6 +51,7 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
     likedCount: 0,
     dislikedCount: 0,
     satisfactionRate: 100,
+    totalUsers: 0,
   });
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [messageFilter, setMessageFilter] = useState<"all" | "like" | "dislike">("all");
@@ -308,7 +310,7 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
           {activeTab === "messages" && (
             <div className="space-y-4">
               {/* Stat Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
                   <span className="text-[11px] text-slate-400 block">Toplam Mesaj</span>
                   <span className="text-lg font-bold text-white">{stats.totalMessages}</span>
@@ -328,6 +330,10 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
                 <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
                   <span className="text-[11px] text-cyan-400 block">Memnuniyet Oranı</span>
                   <span className="text-lg font-bold text-cyan-300">%{stats.satisfactionRate}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <span className="text-[11px] text-indigo-400 block">Kayıtlı Kullanıcı</span>
+                  <span className="text-lg font-bold text-indigo-300">{stats.totalUsers}</span>
                 </div>
               </div>
 
