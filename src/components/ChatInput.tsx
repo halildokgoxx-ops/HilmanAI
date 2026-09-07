@@ -153,12 +153,23 @@ export function ChatInput({
     if (isLoading) return;
 
     let fullMessage = input.trim();
+    // Sunucu 20K sınırına takılmamak için dosya bütçesi girdiye göre ayarlanır
+    const budget = Math.max(2000, 19000 - fullMessage.length - 500);
+    const MAX_FILE_CHARS = Math.min(15000, budget);
+    const excerpt = (content: string) =>
+      content.length > MAX_FILE_CHARS
+        ? content.slice(0, MAX_FILE_CHARS) +
+          `\n\n[... dosyanın tamamı ${content.length} karakter; ilk ${MAX_FILE_CHARS} karakteri gösteriliyor ...]`
+        : content;
     if (!fullMessage && attachedFile) {
       if (attachedFile.type?.startsWith("image/")) {
         fullMessage = "Bu görseli derinlemesine analiz et, detaylarını ve varsa kod/tasarım bileşenlerini açıkla.";
       } else {
-        fullMessage = `[Eklenen Dosya: ${attachedFile.name}]\n\`\`\`\n${attachedFile.content}\n\`\`\`\n\nBu dosya içeriğini inceleyip analiz eder misin?`;
+        fullMessage = `[Eklenen Dosya: ${attachedFile.name}]\n\`\`\`\n${excerpt(attachedFile.content)}\n\`\`\`\n\nBu dosya içeriğini inceleyip analiz eder misin?`;
       }
+    } else if (fullMessage && attachedFile && !attachedFile.type?.startsWith("image/")) {
+      // Yazı + metin dosyası birlikteyse dosya göz ardı edilmesin
+      fullMessage += `\n\n[Ekli Dosya: ${attachedFile.name}]\n\`\`\`\n${excerpt(attachedFile.content)}\n\`\`\``;
     }
 
     if (!fullMessage.trim() && !attachedFile) return;
