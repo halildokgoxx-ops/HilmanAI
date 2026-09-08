@@ -20,6 +20,10 @@ import {
   Calendar,
   Sparkles,
   Users,
+  Sliders,
+  Brain,
+  Code,
+  Megaphone,
 } from "lucide-react";
 import type { MessageData, CustomModelData, HilmanUser } from "@/lib/storage";
 
@@ -30,7 +34,7 @@ interface AdminPanelModalProps {
 }
 
 export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelModalProps) {
-  const [activeTab, setActiveTab] = useState<"messages" | "models" | "system_prompt" | "users">("messages");
+  const [activeTab, setActiveTab] = useState<"messages" | "models" | "system_prompt" | "users" | "engine" | "changelog">("messages");
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -64,12 +68,26 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
   const [newModelDesc, setNewModelDesc] = useState("");
   const [newModelBadge, setNewModelBadge] = useState("");
 
+  // Duyuru (changelog) State
+  const [chgTitle, setChgTitle] = useState("");
+  const [chgBody, setChgBody] = useState("");
+  const [chgId, setChgId] = useState<string | null>(null);
+
   // Users & Quota State
   const [users, setUsers] = useState<HilmanUser[]>([]);
-  const [quotaEdits, setQuotaEdits] = useState<Record<string, { quota: string; isVip: boolean }>>({});
+  const [planEdits, setPlanEdits] = useState<Record<string, { plan: string; quota: string }>>({});
 
   // Global System Prompt State
   const [systemPrompt, setSystemPrompt] = useState("");
+
+  // Motor Parametreleri (admin'e özel — herkese uygulanır)
+  const [defaultModel, setDefaultModel] = useState("hilmanai-v1-beta");
+  const [temperature, setTemperature] = useState("0.7");
+  const [maxTokens, setMaxTokens] = useState(2048);
+  const [reasoningDepth, setReasoningDepth] = useState<"standard" | "deep" | "extreme">("deep");
+  const [contextWindow, setContextWindow] = useState<"32k" | "64k" | "128k">("128k");
+  const [codeOptimization, setCodeOptimization] = useState(true);
+  const [showThinking, setShowThinking] = useState(true);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -87,10 +105,35 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
         setModels(data.models || []);
         setSystemPrompt(data.systemPrompt || "");
         setUsers(data.users || []);
-        setQuotaEdits({});
+        setPlanEdits({});
+        if (data.changelog) {
+          setChgId(data.changelog.id);
+          setChgTitle(data.changelog.title || "");
+          setChgBody(data.changelog.body || "");
+        } else {
+          setChgId(null);
+          setChgTitle("");
+          setChgBody("");
+        }
       }
     } catch (err) {
       console.error("Failed to load admin data:", err);
+    }
+    try {
+      const res = await fetch("/api/settings");
+      const data = await res.json();
+      if (data.success && data.settings) {
+        const s = data.settings;
+        setDefaultModel(s.defaultModel || "hilmanai-v1-beta");
+        setTemperature(s.temperature || "0.7");
+        setMaxTokens(s.maxTokens || 2048);
+        setReasoningDepth(s.reasoningDepth || "deep");
+        setContextWindow(s.contextWindow || "128k");
+        setCodeOptimization(s.codeOptimization !== false);
+        setShowThinking(s.showThinking !== false);
+      }
+    } catch (err) {
+      console.error("Failed to load engine settings:", err);
     } finally {
       setIsLoading(false);
     }
@@ -161,29 +204,104 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
     }
   };
 
-  const handleSetQuota = async (email: string) => {
-    const edit = quotaEdits[email];
+  const handleSetPlan = async (email: string) => {
+    const edit = planEdits[email];
     if (!edit) return;
-    const quota = Number(edit.quota);
-    if (!Number.isFinite(quota) || quota < 0) {
-      alert("Geçerli bir kota girin (0 ve üzeri sayı).");
-      return;
-    }
     try {
       const res = await fetch("/api/admin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "set_quota", email, quota, isVip: edit.isVip }),
+        body: JSON.stringify({
+          action: "set_plan",
+          email,
+          plan: edit.plan,
+          quota: edit.quota.trim() === "" ? undefined : Number(edit.quota),
+        }),
       });
       const data = await res.json();
       if (data.success) {
         loadAdminData();
       } else {
-        alert(data.error || "Kota güncellenemedi.");
+        alert(data.error || "Plan güncellenemedi.");
       }
     } catch (e) {
       console.error(e);
-      alert("Kota güncellenirken bir hata oluştu.");
+      alert("Plan güncellenirken bir hata oluştu.");
+    }
+  };
+
+  const handleSaveEngine = async () => {
+    setIsSaving(true);
+    setSavedSuccess(false);
+    try {
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          defaultModel,
+          temperature,
+          maxTokens,
+          reasoningDepth,
+          contextWindow,
+          codeOptimization,
+          showThinking,
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 2000);
+      } else {
+        alert(data.error || "Motor ayarları kaydedilemedi.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Motor ayarları kaydedilemedi.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveChangelog = async () => {
+    if (!chgBody.trim()) {
+      alert("Duyuru metni boş olamaz.");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update_changelog", title: chgTitle, body: chgBody }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSavedSuccess(true);
+        setTimeout(() => setSavedSuccess(false), 2000);
+        loadAdminData();
+      } else {
+        alert(data.error || "Duyuru kaydedilemedi.");
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Duyuru kaydedilemedi.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleClearChangelog = async () => {
+    if (!confirm("Aktif duyuruyu kaldırmak istediğinize emin misiniz?")) return;
+    try {
+      const res = await fetch("/api/admin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "clear_changelog" }),
+      });
+      const data = await res.json();
+      if (data.success) loadAdminData();
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -301,6 +419,31 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
             <span className="text-[10px] px-1.5 py-0.2 rounded bg-white/10 text-slate-300">
               {users.length}
             </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("engine")}
+            className={`py-3 flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === "engine"
+                ? "border-emerald-400 text-emerald-400 font-semibold"
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Sliders className="w-4 h-4" />
+            <span>Motor Parametreleri</span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab("changelog")}
+            className={`py-3 flex items-center gap-2 border-b-2 transition-colors ${
+              activeTab === "changelog"
+                ? "border-emerald-400 text-emerald-400 font-semibold"
+                : "border-transparent text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            <Megaphone className="w-4 h-4" />
+            <span>Duyuru</span>
+            {chgId && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
           </button>
         </div>
 
@@ -616,12 +759,247 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
             </div>
           )}
 
+          {/* TAB: MOTOR PARAMETRELERİ */}
+          {activeTab === "engine" && (
+            <div className="space-y-4">
+              <p className="text-xs text-slate-400">
+                Tüm kullanıcılara uygulanan global motor ayarları. Değişiklikler anında geçerli olur.
+              </p>
+              <div className="space-y-1.5">
+                <label className="font-semibold text-xs text-slate-200 uppercase tracking-wider block">
+                  Varsayılan Model
+                </label>
+                <select
+                  value={defaultModel}
+                  onChange={(e) => setDefaultModel(e.target.value)}
+                  className="w-full bg-[#13151b] text-slate-200 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50 font-medium"
+                >
+                  {models.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name} ({m.badge})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <label className="font-semibold text-xs text-slate-200">
+                    Sıcaklık (Temperature): {temperature}
+                  </label>
+                </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="1.0"
+                  step="0.05"
+                  value={temperature}
+                  onChange={(e) => setTemperature(e.target.value)}
+                  className="w-full accent-emerald-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <label className="font-semibold text-xs text-slate-200">
+                    Maksimum Yanıt Uzunluğu: {maxTokens} token
+                  </label>
+                </div>
+                <input
+                  type="range"
+                  min="256"
+                  max="4096"
+                  step="128"
+                  value={maxTokens}
+                  onChange={(e) => setMaxTokens(Number(e.target.value))}
+                  className="w-full accent-emerald-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-indigo-400" />
+                  <span className="font-semibold text-xs text-slate-200">
+                    Düşünce Süreci Derinliği
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["standard", "deep", "extreme"] as const).map((lvl) => (
+                    <button
+                      key={lvl}
+                      type="button"
+                      onClick={() => setReasoningDepth(lvl)}
+                      className={`p-2.5 rounded-lg border text-xs font-medium transition-all text-center ${
+                        reasoningDepth === lvl
+                          ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/50"
+                          : "bg-black/30 border-white/5 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {lvl === "standard" ? "Standart" : lvl === "deep" ? "Derin" : "Ekstrem"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-2.5">
+                <div className="flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-cyan-400" />
+                  <span className="font-semibold text-xs text-slate-200">Bağlam Penceresi</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(["32k", "64k", "128k"] as const).map((w) => (
+                    <button
+                      key={w}
+                      type="button"
+                      onClick={() => setContextWindow(w)}
+                      className={`p-2 rounded-lg border text-xs font-mono transition-all text-center ${
+                        contextWindow === w
+                          ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50"
+                          : "bg-black/30 border-white/5 text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {w}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-3 cursor-pointer hover:bg-white/[0.04] transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={codeOptimization}
+                    onChange={(e) => setCodeOptimization(e.target.checked)}
+                    className="mt-0.5 accent-emerald-500 rounded"
+                  />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <Code className="w-3.5 h-3.5 text-emerald-400" />
+                      <span className="font-semibold text-xs text-slate-200">Clean Code Optimizasyonu</span>
+                    </div>
+                  </div>
+                </label>
+                <label className="p-3.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-3 cursor-pointer hover:bg-white/[0.04] transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={showThinking}
+                    onChange={(e) => setShowThinking(e.target.checked)}
+                    className="mt-0.5 accent-indigo-500 rounded"
+                  />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <Brain className="w-3.5 h-3.5 text-indigo-400" />
+                      <span className="font-semibold text-xs text-slate-200">Düşünce Zincirini Göster</span>
+                    </div>
+                  </div>
+                </label>
+              </div>
+
+              <div className="flex items-center justify-end pt-1">
+                <button
+                  onClick={handleSaveEngine}
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition-all flex items-center gap-2 shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Kaydediliyor...</span>
+                    </>
+                  ) : savedSuccess ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Kaydedildi!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-3.5 h-3.5" />
+                      <span>Motor Ayarlarını Kaydet</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TAB: DUYURU */}
+          {activeTab === "changelog" && (
+            <div className="space-y-3">
+              <div>
+                <label className="font-semibold text-xs text-slate-200 uppercase tracking-wider block">
+                  Site Açılış Duyurusu
+                </label>
+                <p className="text-xs text-slate-400 mt-1">
+                  Kaydettiğiniz not, kullanıcılar sohbet ekranını açtığında ortada şık bir
+                  pencere olarak gösterilir. Kapatıp yeniden kaydederseniz herkese tekrar gösterilir.
+                </p>
+              </div>
+              {chgId && (
+                <div className="text-[11px] text-emerald-400 font-mono">
+                  ● Yayında (ID: {chgId})
+                </div>
+              )}
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-400">Başlık</label>
+                <input
+                  type="text"
+                  value={chgTitle}
+                  onChange={(e) => setChgTitle(e.target.value)}
+                  placeholder="Örn: HilmanAI v2 Yayında!"
+                  className="w-full bg-[#13151b] text-slate-200 border border-white/10 rounded-xl px-3.5 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] text-slate-400">Metin (Markdown destekler)</label>
+                <textarea
+                  value={chgBody}
+                  onChange={(e) => setChgBody(e.target.value)}
+                  rows={8}
+                  placeholder={"Örn:\n- **Yeni:** Takip soruları eklendi\n- Hız %40 arttı"}
+                  className="w-full bg-[#13151b] text-slate-200 border border-white/10 rounded-xl p-3.5 text-xs font-mono leading-relaxed focus:outline-none focus:ring-1 focus:ring-emerald-500/50 resize-y"
+                />
+              </div>
+              <div className="flex items-center justify-between pt-1">
+                <button
+                  onClick={handleClearChangelog}
+                  className="px-4 py-2 rounded-xl text-xs text-red-300 hover:text-red-200 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Duyuruyu Kaldır</span>
+                </button>
+                <button
+                  onClick={handleSaveChangelog}
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition-all flex items-center gap-2 shadow-md shadow-emerald-500/20 disabled:opacity-50"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Kaydediliyor...</span>
+                    </>
+                  ) : savedSuccess ? (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Yayınlandı!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Megaphone className="w-3.5 h-3.5" />
+                      <span>Duyuruyu Yayınla</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* TAB 4: KULLANICILAR & KOTA */}
           {activeTab === "users" && (
             <div className="space-y-3">
               <p className="text-xs text-slate-400">
-                Google ile giriş yapan hesaplar. Kota boş bırakılırsa sınırsızdır; 0 ise sohbet
-                engellenir. VIP kullanıcılar kotadan muaftır.
+                Google ile giriş yapan hesaplar. Free günde 100, Premium günde 1000 mesaj;
+                Premium Plus sınırsızdır. Kota her gece yarısı tazelenir. Özel sayı girerseniz
+                plan kotası yerine o kullanılır.
               </p>
               {users.length === 0 && (
                 <div className="p-4 text-center text-xs text-slate-500 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
@@ -630,9 +1008,9 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
               )}
               <div className="space-y-2">
                 {users.map((u) => {
-                  const edit = quotaEdits[u.email] || {
-                    quota: u.quota != null ? String(u.quota) : "",
-                    isVip: !!u.isVip,
+                  const edit = planEdits[u.email] || {
+                    plan: (u as any).plan || (u.isVip ? "premium_plus" : "free"),
+                    quota: "",
                   };
                   return (
                     <div
@@ -655,37 +1033,53 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
                           </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-2 shrink-0 flex-wrap">
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
+                            ((u as any).plan === "premium_plus" || u.isVip)
+                              ? "bg-amber-500/20 text-amber-300"
+                              : (u as any).plan === "premium"
+                              ? "bg-cyan-500/20 text-cyan-300"
+                              : "bg-white/10 text-slate-300"
+                          }`}
+                        >
+                          {(u as any).plan === "premium_plus" || u.isVip
+                            ? "PLUS"
+                            : (u as any).plan === "premium"
+                            ? "PRO"
+                            : "FREE"}
+                          {u.quota != null ? ` • ${u.quota}` : ""}
+                        </span>
+                        <select
+                          value={edit.plan}
+                          onChange={(e) =>
+                            setPlanEdits((prev) => ({
+                              ...prev,
+                              [u.email]: { plan: e.target.value, quota: edit.quota },
+                            }))
+                          }
+                          className="bg-black/40 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
+                        >
+                          <option value="free">Free (100/gün)</option>
+                          <option value="premium">Premium (1000/gün)</option>
+                          <option value="premium_plus">Premium Plus (∞)</option>
+                        </select>
                         <input
                           type="number"
                           min={0}
                           value={edit.quota}
                           onChange={(e) =>
-                            setQuotaEdits((prev) => ({
+                            setPlanEdits((prev) => ({
                               ...prev,
-                              [u.email]: { quota: e.target.value, isVip: edit.isVip },
+                              [u.email]: { plan: edit.plan, quota: e.target.value },
                             }))
                           }
-                          placeholder="∞"
-                          title="Kota (boş = sınırsız)"
-                          className="w-20 bg-black/40 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-emerald-500"
+                          placeholder="Özel kota"
+                          title="Boş bırakılırsa plan kotası kullanılır"
+                          className="w-24 bg-black/40 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs font-mono focus:outline-none focus:border-emerald-500"
                         />
-                        <label className="flex items-center gap-1 text-[11px] text-slate-300 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={edit.isVip}
-                            onChange={(e) =>
-                              setQuotaEdits((prev) => ({
-                                ...prev,
-                                [u.email]: { quota: edit.quota, isVip: e.target.checked },
-                              }))
-                            }
-                            className="accent-amber-500"
-                          />
-                          <span>VIP</span>
-                        </label>
                         <button
-                          onClick={() => handleSetQuota(u.email)}
+                          onClick={() => handleSetPlan(u.email)}
                           className="px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-black font-semibold text-xs transition-all flex items-center gap-1"
                         >
                           <Save className="w-3 h-3" />

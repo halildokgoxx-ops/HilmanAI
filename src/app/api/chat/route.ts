@@ -60,12 +60,17 @@ export async function POST(req: NextRequest) {
     const actorEmail = session?.email || keyOwner || "api-user";
     const isAdmin = !!session?.isAdmin;
 
-    // Kota: tanımlıysa ve VIP değilse uygula (admin/API anahtarı muaf)
+    // Kota: günlük plan kotası (admin/API anahtarı muaf, plus sınırsız)
     if (session && !isAdmin && !extractedKey) {
-      const quotaUser = hilmanStorage.getUser(actorEmail);
-      if (quotaUser && quotaUser.quota != null && !quotaUser.isVip && quotaUser.quota <= 0) {
+      const q = hilmanStorage.checkQuota(actorEmail);
+      if (!q.allowed) {
+        const planName =
+          q.plan === "premium" ? "Premium" : q.plan === "premium_plus" ? "Premium Plus" : "Free";
         return NextResponse.json(
-          { success: false, error: "Sohbet kotanız doldu. Kota artırmak için yöneticiyle iletişime geçin." },
+          {
+            success: false,
+            error: `Günlük ${planName} kotanız doldu (${q.plan === "free" ? "100" : "1000"} mesaj/gün). Yarın yenilenecek veya plan yükseltmek için yöneticiyle iletişime geçin.`,
+          },
           { status: 429 }
         );
       }
@@ -215,7 +220,7 @@ export async function POST(req: NextRequest) {
 
     // 7. Kota düş (tanımlıysa)
     if (session && !isAdmin && !extractedKey) {
-      hilmanStorage.decrementQuota(actorEmail);
+      hilmanStorage.consumeQuota(actorEmail);
     }
 
     return NextResponse.json({

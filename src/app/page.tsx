@@ -32,12 +32,14 @@ import { CodePreviewPanel } from "@/components/CodePreviewPanel";
 import { QUICK_PROMPTS, AVAILABLE_MODELS, CHAT_MODES, type ChatModeId, type ToolType } from "@/lib/constants";
 import type { ConversationData, MessageData, CustomModelData } from "@/lib/storage";
 import { LoginScreen } from "@/components/LoginScreen";
+import { ChangelogModal, type ChangelogNoteData } from "@/components/ChangelogModal";
 
 export interface AuthUser {
   email: string;
   name: string;
   picture?: string | null;
   isAdmin: boolean;
+  plan?: "free" | "premium" | "premium_plus";
   quota?: number | null;
   isVip?: boolean;
 }
@@ -51,6 +53,9 @@ export default function HilmanChatPage() {
   // Auth (Google zorunlu — girişsiz AI açılmaz)
   const [user, setUser] = useState<AuthUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+
+  // Açılış duyurusu
+  const [changelogNote, setChangelogNote] = useState<ChangelogNoteData | null>(null);
 
   // App settings state & Dynamic Models
   const [selectedModel, setSelectedModel] = useState<string>("hilmanai-v1-beta");
@@ -97,12 +102,36 @@ export default function HilmanChatPage() {
         loadSettings();
         loadModels();
         loadConversations(true, data.user.email);
+        loadChangelog(data.user.email);
       }
     } catch (e) {
       console.error("Session check failed:", e);
     } finally {
       setAuthLoading(false);
     }
+  };
+
+  const loadChangelog = async (email: string) => {
+    try {
+      const res = await fetch("/api/changelog");
+      if (res.status === 401) return;
+      const data = await res.json();
+      if (data.success && data.note && data.note.id) {
+        const seenKey = `hilman_changelog_seen_${email}_${data.note.id}`;
+        if (typeof window !== "undefined" && !localStorage.getItem(seenKey)) {
+          setChangelogNote(data.note);
+        }
+      }
+    } catch (e) {
+      console.error("Changelog load failed:", e);
+    }
+  };
+
+  const closeChangelog = () => {
+    if (changelogNote && user && typeof window !== "undefined") {
+      localStorage.setItem(`hilman_changelog_seen_${user.email}_${changelogNote.id}`, "1");
+    }
+    setChangelogNote(null);
   };
 
   const handleLoggedIn = (u: AuthUser) => {
@@ -112,6 +141,7 @@ export default function HilmanChatPage() {
     loadSettings();
     loadModels();
     loadConversations(true, u.email);
+    loadChangelog(u.email);
   };
 
   const handleLogout = async () => {
@@ -659,6 +689,11 @@ export default function HilmanChatPage() {
         conversation={currentConversation as any}
         messages={messages as any}
       />
+
+      {/* Açılış Duyurusu */}
+      {changelogNote && (
+        <ChangelogModal note={changelogNote} onClose={closeChangelog} />
+      )}
     </div>
   );
 }

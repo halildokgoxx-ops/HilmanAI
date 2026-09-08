@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ success: true, user: null });
   }
   const stored = hilmanStorage.getUser(session.email);
+  const q = hilmanStorage.checkQuota(session.email);
   return NextResponse.json({
     success: true,
     user: {
@@ -16,8 +17,9 @@ export async function GET(req: NextRequest) {
       name: stored?.name || session.name,
       picture: stored?.picture || session.picture || null,
       isAdmin: session.isAdmin,
-      quota: stored?.quota ?? null,
-      isVip: !!stored?.isVip,
+      plan: q.plan,
+      quota: q.remaining,
+      isVip: q.plan === "premium_plus",
     },
   });
 }

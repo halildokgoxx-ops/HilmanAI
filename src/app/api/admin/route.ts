@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hilmanStorage } from "@/lib/storage";
+import { hilmanStorage, planOf } from "@/lib/storage";
 import { getSessionUser, unauthorized, forbidden } from "@/lib/auth";
 
 export async function GET(req: NextRequest) {
@@ -36,12 +36,14 @@ export async function GET(req: NextRequest) {
         email: u.email,
         name: u.name,
         picture: u.picture || null,
+        plan: planOf(u),
         quota: u.quota ?? null,
         isVip: !!u.isVip,
         createdAt: u.createdAt,
         lastLoginAt: u.lastLoginAt,
       })),
       systemPrompt: settings.systemPrompt,
+      changelog: hilmanStorage.getChangelog(),
       messages: messages.slice(0, 100), // latest 100 messages
     });
   } catch (err: any) {
@@ -93,6 +95,34 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: false, error: "E-posta ve kota gereklidir." }, { status: 400 });
       }
       const ok = hilmanStorage.setUserQuota(body.email, Number(body.quota), body.isVip);
+      if (!ok) {
+        return NextResponse.json({ success: false, error: "Kullanıcı bulunamadı." }, { status: 404 });
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "update_changelog") {
+      if (!body.body || typeof body.body !== "string") {
+        return NextResponse.json({ success: false, error: "Duyuru metni gereklidir." }, { status: 400 });
+      }
+      const note = hilmanStorage.setChangelog(body.title || "", body.body);
+      return NextResponse.json({ success: true, note });
+    }
+
+    if (action === "clear_changelog") {
+      hilmanStorage.clearChangelog();
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === "set_plan") {      const plan = String(body.plan || "");
+      if (!body.email || (plan !== "free" && plan !== "premium" && plan !== "premium_plus")) {
+        return NextResponse.json({ success: false, error: "E-posta ve geçerli plan (free/premium/premium_plus) gereklidir." }, { status: 400 });
+      }
+      const quotaOverride =
+        body.quota === undefined || body.quota === null || body.quota === ""
+          ? undefined
+          : Number(body.quota);
+      const ok = hilmanStorage.setUserPlan(body.email, plan as any, quotaOverride);
       if (!ok) {
         return NextResponse.json({ success: false, error: "Kullanıcı bulunamadı." }, { status: 404 });
       }

@@ -14,15 +14,46 @@ export interface HilmanApiKey {
   createdAt: string;
 }
 
+export type PlanId = "free" | "premium" | "premium_plus";
+
 export interface HilmanUser {
   email: string; // küçük harf, birincil anahtar
   name: string;
   picture?: string | null;
   personalPrompt?: string; // kullanıcıya özel talimat (HilmanAI kişisel komutları gibi)
-  quota?: number; // kalan sohbet hakkı (opsiyonel, tanımsızsa sınırsız)
-  isVip?: boolean;
+  plan?: PlanId; // abonelik katmanı (yoksa free)
+  quota?: number | null; // kalan günlük hak (null = sınırsız, plus'ta null)
+  quotaResetAt?: string | null; // ISO — bu saatte kota tazelenir
+  isVip?: boolean; // legacy: true ise premium_plus gibi davranır
   createdAt: string;
   lastLoginAt: string;
+}
+
+/** Katman günlük hakları (free az olmayacak şekilde) */
+export const PLAN_DAILY_QUOTA: Record<PlanId, number | null> = {
+  free: 100,
+  premium: 1000,
+  premium_plus: null, // sınırsız
+};
+
+export const PLAN_LABEL: Record<PlanId, string> = {
+  free: "Free",
+  premium: "Premium",
+  premium_plus: "Premium Plus",
+};
+
+export function planOf(user: HilmanUser | null | undefined): PlanId {
+  if (!user) return "free";
+  if (user.isVip) return "premium_plus";
+  return user.plan || "free";
+}
+
+/** Ertesi gece yarısı (yerel saat) */
+function nextResetAt(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(0, 0, 0, 0);
+  return d.toISOString();
 }
 
 export interface CustomModelData {
@@ -86,11 +117,19 @@ export interface MessageData {
   createdAt: string;
 }
 
+export interface ChangelogNote {
+  id: string;
+  title: string;
+  body: string; // markdown destekler
+  updatedAt: string;
+}
+
 interface StorageSchema {
   settings: AppSettingsData;
   models: CustomModelData[];
   apiKeys: HilmanApiKey[];
   users: HilmanUser[];
+  changelog: ChangelogNote | null; // site açılışında gösterilen duyuru
   conversations: ConversationData[];
   messages: MessageData[];
 }
@@ -135,6 +174,7 @@ function getDefaultState(): StorageSchema {
     models: getDefaultModels(),
     apiKeys: [],
     users: [],
+    changelog: null,
     conversations: [],
     messages: [],
   };
@@ -180,6 +220,11 @@ class HilmanStorage {
 
       if (!data.users) {
         data.users = [];
+        this.write(data);
+      }
+
+      if ((data as any).changelog === undefined) {
+        (data as any).changelog = null;
         this.write(data);
       }
 
@@ -351,22 +396,94 @@ class HilmanStorage {
     );
   }
 
-  /** Sohbet kotasından 1 düşürür. Kotasız (null) kullanıcıda hiçbir şey yapmaz. */
-  public decrementQuota(email: string): void {
+  public setUserQuota(email: string, quota: number, isVip?: boolean): boolean {
     const data = this.read();
-    const user = (data.users || []).find((u) => u.email === email.trim().toLowerCase());
-    if (!user || user.quota == null || user.isVip) return;
-    user.quota = Math.max(0, user.quota - 1);
-    this.write(data);
-  }
-
-  public setUserQuota(email: string, quota: number, isVip?: boolean): boolean {    const data = this.read();
     const user = (data.users || []).find((u) => u.email === email.trim().toLowerCase());
     if (!user) return false;
     user.quota = quota;
     if (isVip !== undefined) user.isVip = isVip;
     this.write(data);
     return true;
+  }
+
+  /** Abonelik planını değiştirir + kotayı plan varsayılanıyla tazeler */
+  public setUserPlan(email: string, plan: PlanId, quotaOverride?: number): boolean {
+    const data = this.read();
+    const user = (data.users || []).find((u) => u.email === email.trim().toLowerCase());
+    if (!user) return false;
+    user.plan = plan;
+    user.isVip = plan === "premium_plus" ? true : false;
+    const allowance = PLAN_DAILY_QUOTA[plan];
+    user.quota = quotaOverride != null ? quotaOverride : allowance;
+    user.quotaResetAt = allowance == null ? null : nextResetAt();
+    this.write(data);
+    return true;
+  }
+
+  /**
+   * Kota kontrolü + günü dolduysa tazeleme.
+   * Döner: { allowed, remaining(null=sınırsız), plan }
+   */
+  public checkQuota(email: string): { allowed: boolean; remaining: number | null; plan: PlanId } {
+    const data = this.read();
+    const clean = email.trim().toLowerCase();
+    const user = (data.users || []).find((u) => u.email === clean);
+    const plan = planOf(user || null);
+    const allowance = PLAN_DAILY_QUOTA[plan];
+    if (allowance == null) return { allowed: true, remaining: null, plan };
+    if (!user) {
+      // Kayıt yoksa (cookie var ama DB'de yok) — serbest bırak, login kaydı oluşturur
+      return { allowed: true, remaining: allowance, plan };
+    }
+    let dirty = false;
+    if (!user.quotaResetAt || new Date(user.quotaResetAt).getTime() <= Date.now()) {
+      // Yeni gün: plan kotasıyla tazele
+      user.quota = allowance;
+      user.quotaResetAt = nextResetAt();
+      dirty = true;
+    }
+    if (user.quota == null) {
+      user.quota = allowance;
+      dirty = true;
+    }
+    if (dirty) this.write(data);
+    return { allowed: (user.quota as number) > 0, remaining: user.quota as number, plan };
+  }
+
+  /** Başarılı sohbet sonrası 1 hak düşürür (sınırlı planlarda) */
+  public consumeQuota(email: string): void {
+    const data = this.read();
+    const user = (data.users || []).find((u) => u.email === email.trim().toLowerCase());
+    if (!user) return;
+    if (planOf(user) === "premium_plus") return;
+    if (user.quota == null) return;
+    user.quota = Math.max(0, user.quota - 1);
+    this.write(data);
+  }
+
+  // CHANGELOG / DUYURU (site açılışında gösterilir)
+  public getChangelog(): ChangelogNote | null {
+    const data = this.read();
+    return (data as any).changelog || null;
+  }
+
+  public setChangelog(title: string, body: string): ChangelogNote {
+    const data = this.read();
+    const note: ChangelogNote = {
+      id: `chg-${Date.now()}`,
+      title: title.trim() || "Güncelleme Notu",
+      body: body.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+    (data as any).changelog = note;
+    this.write(data);
+    return note;
+  }
+
+  public clearChangelog(): void {
+    const data = this.read();
+    (data as any).changelog = null;
+    this.write(data);
   }
 
   // API KEYS (hesap başına MAX 3 — gerçek, kullanımlı, sahipli)

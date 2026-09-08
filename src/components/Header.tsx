@@ -236,19 +236,32 @@ export function Header({
           <Settings className="w-4 h-4" />
         </button>
 
-        {/* Quota chip (kota tanımlıysa) */}
-        {user && user.quota != null && !user.isVip && (
+        {/* Plan + kota çipi */}
+        {user && user.plan !== "premium_plus" && (
           <span
-            className={`hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-mono border ${
-              user.quota <= 0
-                ? "bg-red-500/10 text-red-300 border-red-500/30"
-                : user.quota <= 10
+            className={`hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-mono border ${
+              user.plan === "premium"
                 ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
                 : "bg-white/[0.04] text-slate-300 border-white/10"
             }`}
-            title="Kalan sohbet hakkınız"
+            title={user.quota != null ? `Kalan günlük hak: ${user.quota}` : "Günlük hak"}
           >
-            {user.quota} hak
+            <span
+              className={`text-[9px] font-bold px-1 rounded ${
+                user.plan === "premium" ? "bg-amber-500/25 text-amber-200" : "bg-white/10 text-slate-300"
+              }`}
+            >
+              {user.plan === "premium" ? "PRO" : "FREE"}
+            </span>
+            {user.quota != null && <span>{user.quota}</span>}
+          </span>
+        )}
+        {user && user.plan === "premium_plus" && (
+          <span
+            className="hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-mono bg-gradient-to-r from-amber-500/20 to-purple-500/20 text-amber-200 border border-amber-500/40"
+            title="Sınırsız kullanım"
+          >
+            <span className="text-[9px] font-bold">PLUS ∞</span>
           </span>
         )}
 
