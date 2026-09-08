@@ -150,6 +150,8 @@ const DATA_DIR = process.env.DATA_DIR?.trim() || path.join(process.cwd(), "data"
 const STORAGE_FILE = path.join(DATA_DIR, "hilman_storage.json");
 const BACKUP_FILE = path.join(DATA_DIR, "hilman_storage.bak.json");
 
+export const BASE_MODEL_IDS = ["hilmanai-v1-beta", "hilmanai-v2-beta"];
+
 function getDefaultModels(): CustomModelData[] {
   return [
     {
@@ -160,6 +162,15 @@ function getDefaultModels(): CustomModelData[] {
       badge: "v1 Beta",
       contextWindow: "128k",
       isDefault: true,
+      createdAt: new Date().toISOString(),
+    },
+    {
+      id: "hilmanai-v2-beta",
+      name: "HilmanAI v2 Beta",
+      hfLink: "https://huggingface.co/HilmanBey/hilman-ai-v2-beta",
+      description: "14B akıl yürütme çekirdeği (derin muhakeme, kodlama, analiz)",
+      badge: "v2 Beta",
+      contextWindow: "128k",
       createdAt: new Date().toISOString(),
     },
   ];
@@ -215,6 +226,14 @@ class HilmanStorage {
       if (!data.models || data.models.length === 0) {
         data.models = getDefaultModels();
         this.write(data);
+      }
+      // V2 sonradan eklendi — eski kayıtlarda yoksa göçür
+      if (data.models && !data.models.some((m) => m.id === "hilmanai-v2-beta")) {
+        const v2 = getDefaultModels().find((m) => m.id === "hilmanai-v2-beta");
+        if (v2) {
+          data.models.push(v2);
+          this.write(data);
+        }
       }
 
       if (!data.settings.personalPrompt) {
@@ -347,8 +366,8 @@ class HilmanStorage {
   public deleteModel(id: string): boolean {
     const data = this.read();
     if (!data.models) return false;
-    // Don't delete base model
-    if (id === "hilmanai-v1-beta") return false;
+    // Don't delete base models
+    if (BASE_MODEL_IDS.includes(id)) return false;
     data.models = data.models.filter((m) => m.id !== id);
     this.write(data);
     return true;

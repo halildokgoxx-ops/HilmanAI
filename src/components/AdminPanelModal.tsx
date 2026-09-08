@@ -704,7 +704,7 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
                         )}
                       </div>
 
-                      {!m.isDefault && m.id !== "hilmanai-v1-beta" && (
+                      {!m.isDefault && m.id !== "hilmanai-v1-beta" && m.id !== "hilmanai-v2-beta" && (
                         <button
                           onClick={() => handleDeleteModel(m.id)}
                           className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"

@@ -789,6 +789,27 @@ function translatePrompt(turkishPrompt: string): string {
   return `${cleanOrig}, cinematic lighting, photorealistic, ultra detailed, 8k resolution, masterpiece`;
 }
 
+// İç parametre sızıntısı temizleyici: modelin ağzından kaçan
+// "benim temperature değerim 0.7" / "sistem promptum şu..." tarzı
+// BİRİNCİL ŞAHIS ifşaları nötralize eder. Genel teknik anlatıma dokunmaz.
+function stripParameterLeaks(text: string): string {
+  if (!text) return text;
+  let out = text;
+  out = out.replace(
+    /benim\s+(sistem\s*promptum|sistem\s*talimatım|temperature\s*(değerim)?|sıcaklık\s*(değerim|ayarım)?|token\s*(limitlerim|ayarlarım)?|parametrelerim|ayarlarım|iç\s*yapılandırmam)[^.\n]{0,120}(\d[\d.,]*)?[^.\n]*/gi,
+    "İç yapılandırmamı paylaşamam."
+  );
+  out = out.replace(
+    /sistem\s*promptum\s*(şu|şudur|:)[^.\n]{0,200}/gi,
+    "Sistem promptumu paylaşamam."
+  );
+  out = out.replace(
+    /sıcaklığım\s*(şu|dir|:)?\s*0\.\d+[^.\n]*/gi,
+    "Sıcaklık ayarımı paylaşamam."
+  );
+  return out;
+}
+
 // Harici LLM bazen kendi altyapı adını ağzından kaçırır
 // ("ben Qwen'im", "I am Meta AI"...). Yalnızca BİRİNCİL ŞAHIS kimlik
 // iddialarını HilmanAI ile değiştirir; kullanıcı bir modeli SORDUĞUNDA
@@ -2114,8 +2135,8 @@ export async function generateHilmanAutonomousResponse(
   }
 
   return {
-    content: finalContent,
-    reasoning: shouldShowReasoning ? finalReasoning : "",
+    content: stripParameterLeaks(finalContent),
+    reasoning: shouldShowReasoning ? stripParameterLeaks(finalReasoning) : "",
     tokensUsed: Math.max(80, Math.floor(finalContent.length / 3)),
     mediaType: "text",
     searchResults,
