@@ -1306,6 +1306,15 @@ function buildAutonomousResponse(
     }
   }
 
+  // 0d. KİMLİK SORULARI (çevrimdışı doğru cevap — harici API'ye gerek yok)
+  const ident = identityAnswer(userPrompt);
+  if (ident) {
+    return {
+      text: ident,
+      reasoning: "",
+    };
+  }
+
   // 1. Selamlaşma ve Tanışma
   if (isCasualGreeting(userPrompt)) {
     if (lower.includes("kimsin")) {
@@ -1793,6 +1802,34 @@ function hashStr(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
   return h;
+}
+
+/**
+ * Kimlik sorularına çevrimdışı doğru cevap (adın ne, hangi modelsin, kim yaptı...).
+ * Eşleşmezse null döner.
+ */
+function identityAnswer(prompt: string): string | null {
+  const n = normalizeTr(prompt);
+  const word = (w: string) => new RegExp(`(^|[\\s.,!?:;])${w}([\\s.,!?:;]|$)`).test(n);
+  const has = (...ws: string[]) => ws.some(word);
+
+  if (has("modelsin", "modelimsin") || n.includes("hangi model")) {
+    return `Ben **HilmanAI v1 Beta** — HilmanAI çekirdeği üzerinde çalışan çok modlu yapay zekayım. Altyapımda açık kaynak mimarilerden yararlanılsa da adım, kimliğim ve davranışım HilmanAI'dır. Sana bugün nasıl yardımcı olabilirim?`;
+  }
+  if (has("adin", "ismin", "adim", "ismim") && has("ne")) {
+    return `Adım **HilmanAI**! Sana nasıl hitap etmemi istersin?`;
+  }
+  if (
+    (has("kim") && (n.includes("yapti") || n.includes("gelistirdi") || n.includes("olusturdu") || n.includes("kurdu") || n.includes("sahibin"))) ||
+    n.includes("yapimcin kim") ||
+    n.includes("mimarin kim")
+  ) {
+    return `Beni **HilmanAI ekibi** geliştirdi ve işletiyor. Fikirlerin veya isteklerin varsa iletirim — ayrıca doğrudan HilmanAI üzerinden bana da sorabilirsin!`;
+  }
+  if ((has("versiyon", "surum", "v1", "v2", "beta") && (n.includes("hangi") || n.includes("kac") || n.includes("ne"))) || n.includes("kacinci surum")) {
+    return `Şu an **HilmanAI v1 Beta** sürümüyle konuşuyorsun. Üstteki model seçiciden **v2 Beta**'ya da geçebilirsin.`;
+  }
+  return null;
 }
 
 /** Son konuşulan anlamlı konu (mevcut mesaj hariç, kendisiyle aynıysa yok say) */
