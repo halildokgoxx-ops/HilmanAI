@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getOrCreateSettings,
   createConversation,
   updateConversation,
   addMessage,
   getRecentMessages,
 } from "@/lib/db-helpers";
 import { hilmanStorage } from "@/lib/storage";
-import {
-  DEFAULT_HILMAN_SYSTEM_PROMPT,
-  CHAT_MODES,
-  type ChatModeId,
-} from "@/lib/constants";
 import { generateHilmanAutonomousResponse } from "@/lib/hilman-engine";
 import { getSessionUser, unauthorized, forbidden } from "@/lib/auth";
 import { checkRateLimit, RATE_PROFILES } from "@/lib/rate-limit";
+import { buildChatSystemPrompt } from "@/lib/chat-prompt";
 
 function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
@@ -109,20 +104,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const settings = await getOrCreateSettings();
-    const model = incomingModel || settings.defaultModel || "hilmanai-v1-beta";
-    const activeMode: ChatModeId = (incomingMode as ChatModeId) || "düşünen";
-
-    const modeConfig = CHAT_MODES[activeMode] || CHAT_MODES["düşünen"];
-    let systemPrompt = settings.systemPrompt || DEFAULT_HILMAN_SYSTEM_PROMPT;
-    // Kullanıcının kişisel talimatı (varsa) her sohbete eklenir
-    const actorUser = hilmanStorage.getUser(actorEmail);
-    if (actorUser?.personalPrompt?.trim()) {
-      systemPrompt += `\n\n[KULLANICI ÖZEL TALİMATI]: ${actorUser.personalPrompt.trim()}`;
-    }
-    if (modeConfig?.instructionPrompt) {
-      systemPrompt += `\n\n${modeConfig.instructionPrompt}`;
-    }
+    const { systemPrompt, activeMode, model } = await buildChatSystemPrompt(
+      actorEmail,
+      incomingMode,
+      incomingModel
+    );
 
     // 1. Resolve or Create Conversation (sahiplik zorunlu)
     let convId = incomingConvId;

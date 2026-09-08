@@ -1,19 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  getOrCreateSettings,
   createConversation,
   updateConversation,
   addMessage,
   getRecentMessages,
 } from "@/lib/db-helpers";
 import { hilmanStorage } from "@/lib/storage";
-import {
-  DEFAULT_HILMAN_SYSTEM_PROMPT,
-  CHAT_MODES,
-  type ChatModeId,
-} from "@/lib/constants";
 import { getSessionUser, unauthorized, forbidden } from "@/lib/auth";
 import { checkRateLimit, RATE_PROFILES } from "@/lib/rate-limit";
+import { buildChatSystemPrompt } from "@/lib/chat-prompt";
 import { enforceHilmanIdentity, stripParameterLeaks } from "@/lib/hilman-engine";
 
 function generateId(): string {
@@ -96,19 +91,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const settings = await getOrCreateSettings();
-  const model = incomingModel || settings.defaultModel || "hilmanai-v1-beta";
-  const activeMode: ChatModeId = (incomingMode as ChatModeId) || "düşünen";
-  const modeConfig = CHAT_MODES[activeMode] || CHAT_MODES["düşünen"];
-
-  let systemPrompt = settings.systemPrompt || DEFAULT_HILMAN_SYSTEM_PROMPT;
-  const actorUser = hilmanStorage.getUser(actorEmail);
-  if (actorUser?.personalPrompt?.trim()) {
-    systemPrompt += `\n\n[KULLANICI ÖZEL TALİMATI]: ${actorUser.personalPrompt.trim()}`;
-  }
-  if (modeConfig?.instructionPrompt) {
-    systemPrompt += `\n\n${modeConfig.instructionPrompt}`;
-  }
+  const { systemPrompt, model } = await buildChatSystemPrompt(actorEmail, incomingMode, incomingModel);
 
   // Sohbeti çöz/oluştur + kullanıcı mesajını kaydet
   let convId = incomingConvId;
@@ -136,7 +119,27 @@ export async function POST(req: NextRequest) {
 
   const storageSettings = hilmanStorage.getSettings();
   const hfToken = process.env.HF_TOKEN?.trim() || (storageSettings as any)?.hfToken?.trim() || "";
-  const candidates = ["deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct", "meta-llama/Llama-3.3-70B-Instruct"];
+  const groqKey = process.env.GROQ_API_KEY?.trim() || (storageSettings as any)?.groqApiKey?.trim() || "";
+  // Sıra: önce Groq (hızlı + ayrı bedava kota), sonra HF modelleri
+  const targets: Array<{ url: string; headers: Record<string, string>; body: any; tag: string }> = [];
+  if (groqKey) {
+    targets.push({
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
+      body: { model: "llama-3.1-8b-instant", messages: apiMessages, max_tokens: 2048, temperature: 0.7, stream: true },
+      tag: "groq:llama-3.1-8b-instant",
+    });
+  }
+  if (hfToken && hfToken.length > 10) {
+    for (const m of ["deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct", "meta-llama/Llama-3.3-70B-Instruct"]) {
+      targets.push({
+        url: "https://router.huggingface.co/v1/chat/completions",
+        headers: { Authorization: `Bearer ${hfToken}`, "Content-Type": "application/json" },
+        body: { model: m, messages: apiMessages, max_tokens: 2048, temperature: 0.7, stream: true },
+        tag: `hf:${m}`,
+      });
+    }
+  }
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -145,25 +148,23 @@ export async function POST(req: NextRequest) {
       let fullText = "";
       let usedModel = "";
 
-      if (hfToken && hfToken.length > 10) {
-        for (const m of candidates) {
-          if (streamed) break;
-          const upstream = new AbortController();
+      if (targets.length === 0) {
+        send({ fallback: true, error: "Canlı akış için sağlayıcı yok." });
+        controller.close();
+        return;
+      }
+      for (const t of targets) {
+        if (streamed) break;
+        const upstream = new AbortController();
           const kill = setTimeout(() => upstream.abort(), 110000);
           // İstemci bağlantıyı keserse yukarı akışı da durdur
           const onClientAbort = () => upstream.abort();
           req.signal.addEventListener("abort", onClientAbort);
           try {
-            const resp = await fetch("https://router.huggingface.co/v1/chat/completions", {
+            const resp = await fetch(t.url, {
               method: "POST",
-              headers: { Authorization: `Bearer ${hfToken}`, "Content-Type": "application/json" },
-              body: JSON.stringify({
-                model: m,
-                messages: apiMessages,
-                max_tokens: 2048,
-                temperature: 0.7,
-                stream: true,
-              }),
+              headers: t.headers,
+              body: JSON.stringify(t.body),
               signal: upstream.signal,
             });
             if (!resp.ok || !resp.body) continue;
@@ -197,10 +198,10 @@ export async function POST(req: NextRequest) {
             }
             if (gotAny && fullText.trim()) {
               streamed = true;
-              usedModel = m;
+              usedModel = t.tag;
             }
           } catch {
-            // sıradaki modele geç
+            // sıradaki sağlayıcıya geç
           } finally {
             clearTimeout(kill);
             req.signal.removeEventListener("abort", onClientAbort);
@@ -238,8 +239,8 @@ export async function POST(req: NextRequest) {
         latencyMs,
         isError: false,
       });
-      (saved as any).source = `hf:${usedModel}`;
-      hilmanStorage.setMessageSource(assistantMessageId, `hf:${usedModel}`);
+      (saved as any).source = usedModel;
+      hilmanStorage.setMessageSource(assistantMessageId, usedModel);
 
       await updateConversation(convId, { updatedAt: new Date().toISOString(), model, provider: "hilman-engine" });
       if (session && !isAdmin && !extractedKey) {
@@ -250,7 +251,7 @@ export async function POST(req: NextRequest) {
         done: true,
         conversationId: convId,
         isNewConversation: isNewConv,
-        message: { ...saved, source: `hf:${usedModel}` },
+        message: { ...saved, source: usedModel },
         latencyMs,
       });
       controller.close();
