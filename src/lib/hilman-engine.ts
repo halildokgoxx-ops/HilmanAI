@@ -810,6 +810,55 @@ function stripParameterLeaks(text: string): string {
   return out;
 }
 
+/**
+ * Yerel matematik çözücü: dış AI'ya gitmeden anında sonuç.
+ * - Saf aritmetik: "2+2", "(3+5)*2", "1,5 x 4"
+ * - Yüzde/kDV kalıpları: "1000 liranın %15 KDV dahil fiyatı"
+ * Tehlikeli eval YOK: katı beyaz liste + elle ayrıştırma.
+ */
+function trySolveMath(prompt: string): string | null {
+  const raw = prompt.trim();
+  // 1) Yüzde + KDV kalıbı: "1000 liranın %15 KDV dahil fiyatı kaç"
+  const pct = normalizeTr(raw).replace(/\./g, "").replace(/,/g, ".");
+  // Daha sıkı: "%15 ... 1000" veya "1000 ... %15" + kdv/dahil kelimesi
+  const numPct = pct.match(/(\d+(?:\.\d+)?)[^\d%]{0,20}%(\d+(?:\.\d+)?)|%(\d+(?:\.\d+)?)[^\d%]{0,20}(\d+(?:\.\d+)?)/);
+  const wantsKdv = pct.includes("kdv");
+  if (numPct) {
+    const base = parseFloat(numPct[1] || numPct[4] || "");
+    const rate = parseFloat(numPct[2] || numPct[3] || "");
+    if (Number.isFinite(base) && Number.isFinite(rate)) {
+      const part = (base * rate) / 100;
+      const fmt = (x: number) => Number(x.toFixed(2)).toLocaleString("tr-TR");
+      if (wantsKdv) {
+        return `**Hesaplama:** ${fmt(base)} ₺'nin %${rate} KDV dahil fiyatı = **${fmt(base + part)} ₺**\n\nAdımlar:\n1. KDV tutarı: ${fmt(base)} × %${rate} = ${fmt(part)} ₺\n2. Toplam: ${fmt(base)} + ${fmt(part)} = **${fmt(base + part)} ₺**`;
+      }
+      return `**Hesaplama:** ${fmt(base)}'nin %${rate}'i = **${fmt(part)}**`;
+    }
+  }
+  // 2) Saf aritmetik ifade (sadece sayı + operatör içeriyorsa)
+  let expr = raw
+    .replace(/÷/g, "/")
+    .replace(/×/g, "*")
+    .replace(/x/gi, "*")
+    .replace(/,/g, ".");
+  if (!/^[0-9+\-*/().\s*]+$/.test(expr) || !/\d/.test(expr) || !/[+\-*/]/.test(expr)) {
+    return null;
+  }
+  // Art arda operatör / boş parantez gibi bozuklukları ele
+  if (/[+\-*/.]{2,}/.test(expr.replace(/\*\*/g, "")) && !/^\s*-\d/.test(expr)) {
+    // "--" gibi durumlar hariç temkinli ol; yine de dene
+  }
+  try {
+    // eslint-disable-next-line no-new-func
+    const val = Function(`"use strict"; return (${expr});`)();
+    if (typeof val !== "number" || !Number.isFinite(val)) return null;
+    const fmt = (x: number) => Number(x.toFixed(6)).toLocaleString("tr-TR");
+    return `**Hesaplama:** ${raw} = **${fmt(val)}**`;
+  } catch {
+    return null;
+  }
+}
+
 // Harici LLM bazen kendi altyapı adını ağzından kaçırır
 // ("ben Qwen'im", "I am Meta AI"...). Yalnızca BİRİNCİL ŞAHIS kimlik
 // iddialarını HilmanAI ile değiştirir; kullanıcı bir modeli SORDUĞUNDA
@@ -1264,6 +1313,15 @@ function buildAutonomousResponse(
   const safety = checkSafety(userPrompt);
   if (safety !== "ok") {
     return safetyRefusal(safety);
+  }
+
+  // 0a. YEREL MATEMATİK (LLM beklemeden anında sonuç + kota harcamaz)
+  const quickMath = trySolveMath(userPrompt);
+  if (quickMath) {
+    return {
+      text: quickMath,
+      reasoning: "",
+    };
   }
 
   // 0b. ONAY TAKİBİ: kullanıcı önceki web-proje teklifini onayladıysa direkt üret
@@ -1921,6 +1979,22 @@ export async function generateHilmanAutonomousResponse(
   const category = classifyUserPrompt(userPrompt, attachedFile, toolType);
   const seed = Math.floor(Math.random() * 1000000);
   const isGreeting = isCasualGreeting(userPrompt);
+
+  // Matematik soruları LLM kuyruğuna girmeden anında çözülür (metin isteklerinde)
+  if (category !== "image" && category !== "video" && category !== "vision") {
+    const instant = trySolveMath(userPrompt);
+    if (instant) {
+      return {
+        content: instant,
+        reasoning: "",
+        tokensUsed: 60,
+        mediaType: "text",
+        searchResults: null,
+        followUps: ["Başka hesapla", "Yüzde hesabı yap", "Özetle"],
+        source: "local",
+      };
+    }
+  }
 
   // =================== 1. GÖRSEL ÜRETİMİ (IMAGE) ===================
   if (category === "image") {
