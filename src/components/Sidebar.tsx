@@ -15,6 +15,7 @@ import {
   Settings,
   Cpu,
   Key,
+  Images,
 } from "lucide-react";
 import type { Conversation } from "@/db/schema";
 
@@ -30,6 +31,7 @@ interface SidebarProps {
   onTogglePinConversation: (id: string, currentPin: boolean) => void;
   onOpenSettings: () => void;
   onOpenDiagnostics: () => void;
+  onOpenMedia: () => void;
   activeProvider: string;
 }
 
@@ -45,6 +47,7 @@ export function Sidebar({
   onTogglePinConversation,
   onOpenSettings,
   onOpenDiagnostics,
+  onOpenMedia,
   activeProvider,
 }: SidebarProps) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -227,13 +230,23 @@ export function Sidebar({
 
           <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
             <span>{conversations.length} kayıtlı sohbet</span>
-            <button
-              onClick={onOpenSettings}
-              className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded hover:bg-white/5"
-              title="Ayarlar"
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={onOpenMedia}
+                className="text-slate-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-white/5 flex items-center gap-1"
+                title="Görseller ve Videolar (Medya Arşivi)"
+              >
+                <Images className="w-3.5 h-3.5" />
+                <span className="text-[10px]">Medya</span>
+              </button>
+              <button
+                onClick={onOpenSettings}
+                className="text-slate-400 hover:text-slate-200 transition-colors p-1 rounded hover:bg-white/5"
+                title="Ayarlar"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
       </aside>

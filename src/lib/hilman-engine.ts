@@ -14,6 +14,7 @@
 import { DEFAULT_HILMAN_SYSTEM_PROMPT } from "./constants";
 import { hilmanStorage } from "./storage";
 import { searchWeb, shouldPerformWebSearch, type SearchResultItem } from "./web-search";
+import { generateRealVideo, videoUnavailableMessage } from "./video-gen";
 
 export interface EngineResponse {
   content: string;
@@ -1715,43 +1716,56 @@ HilmanAI olarak ben de benzer ileri düzey yapay zeka mimarilerini kullanıyorum
     };
   }
 
-  // 10. AKILLI, DOĞAL VE DİNAMİK CEVAP SENTEZLEYİCİ (ASLA KALIP ŞABLON YOK!)
-  const cleanSubject = userPrompt
-    .replace(/[?.,!]/g, "")
-    .replace(/^(bana|lütfen|şunu|bunu|nedir|nasıl|ne|hakkında|bilgi ver|anlat)[:\s]*/gi, "")
-    .trim();
+  // 10. SON KALE: çeşitlenen netleştirici (şablon cümle YASAK!)
+  return buildVariedClarifier(userPrompt, history, mode);
+}
 
-  const titleCase = cleanSubject ? cleanSubject.charAt(0).toUpperCase() + cleanSubject.slice(1) : "Konu";
+/** Basit string hash (varyant seçimi için) */
+function hashStr(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return h;
+}
 
-  const reasoning = mode === "düşünen"
-    ? `1. Kullanıcı sorgusu derinlemesine analiz edildi: "${userPrompt}".\n2. Konu analizi ve anlamsal bağlam çıkarıldı.\n3. Doğal, akıcı ve bilgilendirici profesyonel yanıt sentezlendi.`
+/** Son konuşulan anlamlı konu (mevcut mesaj hariç) */
+function previousTopic(history: Array<{ role: string; content: string }>): string | null {
+  const users = history.filter((m) => m.role === "user").map((m) => (m.content || "").trim());
+  // Son kullanıcı mesajı = mevcut soru; bir öncekine bak
+  const prev = users.length > 1 ? users[users.length - 2] : null;
+  if (!prev || prev.length < 4) return null;
+  const clean = prev.replace(/[?.,!]+$/g, "").trim();
+  if (isCasualGreeting(prev) || isApprovalFollowUp(prev)) return null;
+  return clean.length > 48 ? clean.slice(0, 48).trim() + "…" : clean;
+}
+
+/**
+ * Her çağrıda FARKLI yapıda, samimi netleştirme yanıtı üretir.
+ * Asla kalıp şablon cümle içermez.
+ */
+function buildVariedClarifier(
+  userPrompt: string,
+  history: Array<{ role: string; content: string }>,
+  mode: "düşünen" | "pro" | "hızlı"
+): { text: string; reasoning: string } {
+  const subject = userPrompt.replace(/[?.,!]+$/g, "").trim().slice(0, 42) || "bu konu";
+  const topic = previousTopic(history);
+  const variants: string[] = [
+    `Hmm, "${subject}" dediğini tam çözemedim — biraz daha açar mısın? Bu arada benden şunları isteyebilirsin:\n\n- 💻 **Kod:** "python ile ..." / "bana ... sitesi yap"\n- 🔍 **Araştırma:** "... nedir?" / "... ne zaman?"\n- 🎨 **Görsel:** "... resmi çiz"\n- 🎬 **Video:** "... videosu yap"`,
+    `"${subject}" — ilginç bir giriş! Sana en iyi cevabı vermem için küçük bir ipucu lazım: **bilgi mi** arıyorsun, **kod mu** yazmamı istiyorsun, yoksa **görsel/video** mi üreteyim?`,
+    `Anlamak istiyorum: "${subject}" ile tam olarak ne yapmamı istersin?\n\nÖrnekler:\n- "x nedir?" dersem araştırıp anlatırım\n- "x sitesi yap" dersen kodlarım\n- "x resmi çiz" dersen çizerim\n\nHangisi sana uyuyor?`,
+    `"${subject}"... Bunu ilk kez bu şekilde duyuyorum! 🤔 Yazım hatası olabilir mi, yoksa özel bir terim mi? Biraz detay verirsen hemen dalıyorum konuya.`,
+    `Tam yakalayamadım ama vazgeçmek yok! "${subject}" konusunda şunları deneyebiliriz:\n\n1. Konuyu cümleyle anlatman\n2. Ne istediğini seçmen: **araştır / kodla / çiz / özetle**\n\nSeç birini, gerisini bana bırak.`,
+    `"${subject}" not alındı! 📝 Şimdi yönü sen belirle: daha çok **açıklamamı** mı, **örnek vermemi** mi, yoksa **uygulamalı bir şey üretmemi** mi istersin?`,
+  ];
+  const pick = variants[hashStr(userPrompt) % variants.length];
+  const prefix = topic
+    ? `Az önce "${topic}" hakkında konuşuyorduk — "${subject}" bununla mı ilgili? Eğer öyleyse bağlantıyı kurmama yardım et, yoksa yeni konuya geçelim. 👇\n\n`
     : "";
-
-  let dynamicAnswer = "";
-
-  if (lower.includes("nedir") || lower.includes("ne demek") || lower.includes("tanımı")) {
-    dynamicAnswer = `**${titleCase}**, genel tanımıyla ele alındığında doğrudan ilgili olduğu alandaki temel prensiplere, işlevlere ve pratik kullanım amaçlarına dayanır.\n\n` +
-      `### Öne Çıkan Özellikleri ve Dinamikleri:\n` +
-      `- **İşlev ve Amaç:** Konuyla ilgili süreçlerin doğru anlaşılması, beklenen verimliliği ve doğru sonuçları elde etmenin ilk adımıdır.\n` +
-      `- **Uygulama Alanı:** Teorik bilginin yanı sıra pratikte nasıl kullanıldığı ve hangi gereksinimleri karşıladığı kritik rol oynar.\n` +
-      `- **Gelişim ve Standartlar:** Güncel yaklaşımlar, modern yöntemlerin ve doğrulanmış pratiklerin takip edilmesini gerektirir.\n\n` +
-      `Bu konuyu daha derin teknik detaylarla, tarihçesiyle veya pratik örnekleriyle incelememi isterseniz hemen genişletebilirim.`;
-  } else if (lower.includes("nasıl") || lower.includes("tavsiye") || lower.includes("öneri")) {
-    dynamicAnswer = `**${titleCase}** konusunda en verimli ve başarılı sonucu elde etmek için izlenmesi gereken temel strateji şudur:\n\n` +
-      `1. **Net Hedef Belirleme:** Başlangıçta varmak istediğiniz noktayı ve kriterlerinizi netleştirin.\n` +
-      `2. **Aşamalı İlerleme:** Süreci birden çözmeye çalışmak yerine mantıksal alt adımlara bölün.\n` +
-      `3. **Test ve Optimizasyon:** Her aşamada elde ettiğiniz sonucu kontrol ederek eksikleri anında düzeltin.\n\n` +
-      `Hangi özel adımda takıldığınızı veya hangi detay üzerinde çalışmak istediğinizi belirtirseniz doğrudan o noktaya odaklanabiliriz.`;
-  } else {
-    dynamicAnswer = `**${titleCase}** konusu hakkında talebinizi değerlendirdim.\n\n` +
-      `Bu başlık; doğru yöntem, güncel yaklaşımlar ve analitik bir bakış açısıyla ele alındığında en yüksek verimi sağlar. ` +
-      `Konuyla ilgili özel bir hesaplama, yazılım kodu, araştırma verisi veya detaylı analiz gerekiyorsa doğrudan belirtebilirsiniz. Hemen hazırlamaya başlayabilirim.`;
-  }
-
-  return {
-    text: dynamicAnswer,
-    reasoning,
-  };
+  const reasoning =
+    mode === "düşünen"
+      ? `1. "${userPrompt}" net anlaşılamadı; şablon yerine çeşitli netleştirme üretildi.\n2. Kullanıcıya somut seçenekler sunuldu.`
+      : "";
+  return { text: prefix + pick, reasoning };
 }
 
 // Takip sorusu önerileri (tek tıkla derinleşme)
@@ -1829,7 +1843,7 @@ export async function generateHilmanAutonomousResponse(
     };
   }
 
-  // =================== 2. VİDEO ÜRETİMİ (VIDEO) ===================
+  // =================== 2. VİDEO ÜRETİMİ (GERÇEK — sahte dosya YOK) ===================
   if (category === "video") {
     let cleanDesc = userPrompt.replace(
       /^(video oluştur|video olustur|video yap|video üret|video uret|video hazırla|video hazirla|generate video)\b[:\s]*/gi,
@@ -1849,18 +1863,32 @@ export async function generateHilmanAutonomousResponse(
     const promptEn = translatePrompt(cleanDesc);
     const encodedPrompt = encodeURIComponent(promptEn);
 
-    // Gerçek 720p sinematik video dosyası ve prompta özel poster görseli
-    const videoUrl = "/videos/hilman-motion-sample.mp4";
+    // Sahne posteri her durumda GERÇEK üretilir (ücretsiz, anında)
     const posterUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&seed=${seed}`;
 
+    // Gerçek video denemesi (anahtar varsa)
+    const gen = await generateRealVideo(promptEn, seed, 4);
+    if (gen.ok) {
+      return {
+        content: `🎬 **HilmanAI Motion Studio** ile videon gerçek olarak üretildi!\n\n**Sahne:** *"${cleanDesc}"*\n**Motor:** ${gen.engine}\n**Süre:** ~${gen.durationSec} sn • MP4\n\nAşağıdaki oynatıcıdan izleyebilir veya indirebilirsin.`,
+        reasoning: "",
+        tokensUsed: 310,
+        imageUrl: posterUrl,
+        videoUrl: `/api/media/${gen.fileId}`,
+        mediaType: "video",
+        followUps: buildFollowUps(userPrompt, "video"),
+      };
+    }
+
+    // Üretilemedi → DÜRÜST bilgi (asla örnek dosya "videon" diye sunulmaz)
     return {
-      content: `🎬 **HilmanAI Motion Studio v2** ile sinematik videonuz hazırlandı!\n\n**Sahne:** *"${cleanDesc}"*\n**Çözünürlük:** 720p Sinematik HD\n**Format:** MP4 H.264\n\nVideonuzu aşağıdaki oynatıcıdan izleyebilir veya doğrudan indirebilirsiniz.`,
+      content: videoUnavailableMessage(gen),
       reasoning: "",
-      tokensUsed: 310,
+      tokensUsed: 120,
       imageUrl: posterUrl,
-      videoUrl: videoUrl,
-      mediaType: "video",
-      followUps: buildFollowUps(userPrompt, "video"),
+      videoUrl: null,
+      mediaType: "text",
+      followUps: ["Tekrar dene", "Farklı bir sahne öner", "Bu sahnenin resmini çiz"],
     };
   }
 

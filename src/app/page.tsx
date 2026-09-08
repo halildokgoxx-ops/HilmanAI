@@ -33,6 +33,7 @@ import { QUICK_PROMPTS, AVAILABLE_MODELS, CHAT_MODES, type ChatModeId, type Tool
 import type { ConversationData, MessageData, CustomModelData } from "@/lib/storage";
 import { LoginScreen } from "@/components/LoginScreen";
 import { ChangelogModal, type ChangelogNoteData } from "@/components/ChangelogModal";
+import { MediaModal } from "@/components/MediaModal";
 
 export interface AuthUser {
   email: string;
@@ -75,6 +76,7 @@ export default function HilmanChatPage() {
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [mediaOpen, setMediaOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -453,6 +455,7 @@ export default function HilmanChatPage() {
         onTogglePinConversation={handleTogglePin}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenDiagnostics={() => setDiagnosticsOpen(true)}
+        onOpenMedia={() => setMediaOpen(true)}
         activeProvider="hilman-engine"
       />
 
@@ -695,6 +698,9 @@ export default function HilmanChatPage() {
       {changelogNote && (
         <ChangelogModal note={changelogNote} onClose={closeChangelog} />
       )}
+
+      {/* Medya Arşivi */}
+      <MediaModal isOpen={mediaOpen} onClose={() => setMediaOpen(false)} />
     </div>
   );
 }

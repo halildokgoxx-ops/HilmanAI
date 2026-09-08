@@ -495,6 +495,51 @@ class HilmanStorage {
     this.write(data);
   }
 
+  // GENERATED MEDIA (gerçek üretilen videolar: DATA_DIR/generated)
+  private generatedDir(): string {
+    const dir = path.join(DATA_DIR, "generated");
+    this.ensureDir();
+    try {
+      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    } catch (e) {
+      console.warn("Generated dir error:", e);
+    }
+    return dir;
+  }
+
+  /** Üretilen dosyayı kaydet, id döndür. En fazla son 100 dosya tutulur. */
+  public saveGeneratedFile(fileName: string, bytes: Buffer): string {
+    const dir = this.generatedDir();
+    const safe = fileName.replace(/[^a-zA-Z0-9._-]/g, "_");
+    const full = path.join(dir, safe);
+    fs.writeFileSync(full, bytes);
+    try {
+      const files = fs
+        .readdirSync(dir)
+        .map((f) => ({ f, t: fs.statSync(path.join(dir, f)).mtimeMs }))
+        .sort((a, b) => b.t - a.t);
+      for (const old of files.slice(100)) {
+        try {
+          fs.unlinkSync(path.join(dir, old.f));
+        } catch {}
+      }
+    } catch {}
+    return safe;
+  }
+
+  public readGeneratedFile(fileName: string): Buffer | null {
+    if (!/^[a-zA-Z0-9._-]+$/.test(fileName)) return null;
+    const ext = path.extname(fileName).toLowerCase();
+    if (![".mp4", ".webm", ".png", ".jpg", ".jpeg"].includes(ext)) return null;
+    const full = path.join(this.generatedDir(), fileName);
+    try {
+      if (!fs.existsSync(full)) return null;
+      return fs.readFileSync(full);
+    } catch {
+      return null;
+    }
+  }
+
   // API KEYS (hesap başına MAX 3 — gerçek, kullanımlı, sahipli)
   public getApiKeys(ownerEmail?: string | null): HilmanApiKey[] {
     const data = this.read();
