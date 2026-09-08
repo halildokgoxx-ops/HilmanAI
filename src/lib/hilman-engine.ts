@@ -1874,6 +1874,14 @@ function identityAnswer(prompt: string): string | null {
   if (has("modelsin", "modelimsin") || n.includes("hangi model")) {
     return `Ben **HilmanAI v1 Beta** — HilmanAI çekirdeği üzerinde çalışan çok modlu yapay zekayım. Altyapımda açık kaynak mimarilerden yararlanılsa da adım, kimliğim ve davranışım HilmanAI'dır. Sana bugün nasıl yardımcı olabilirim?`;
   }
+  if (
+    n.includes("kendini tanit") ||
+    n.includes("kendinden bahset") ||
+    n.includes("bana kendini") ||
+    n.includes("kimsin sen")
+  ) {
+    return `Ben **HilmanAI** — ileri düzey muhakeme, hatasız yazılım geliştirme, canlı web araştırması, görsel ve sinematik video üretimi yapabilen yeni nesil profesyonel yapay zeka asistanınım.\n\n### Neler Yapabilirim?\n- 🌐 **Canlı Web Araştırması:** güncel olaylar, tarihler, finans ve teknik veriler\n- 💻 **Yazılım:** Python, TypeScript, React, Next.js ile tam çalışan çözümler\n- 🎨 **Görsel Stüdyosu:** Türkçe komutla HD görsel üretimi\n- 🎬 **Motion Studio:** sinematik video sahneleri\n- 🧠 **Derin Muhakeme:** algoritma ve matematik analizi\n\nBugün hangi konuda yardımcı olabilirim?`;
+  }
   if (has("adin", "ismin", "adim", "ismim") && has("ne")) {
     return `Adım **HilmanAI**! Sana nasıl hitap etmemi istersin?`;
   }
