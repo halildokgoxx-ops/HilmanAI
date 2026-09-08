@@ -88,6 +88,11 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
   const [contextWindow, setContextWindow] = useState<"32k" | "64k" | "128k">("128k");
   const [codeOptimization, setCodeOptimization] = useState(true);
   const [showThinking, setShowThinking] = useState(true);
+  // Senin modelin (HF Space / kendi sunucun — önce burası denenir)
+  const [customEndpoint, setCustomEndpoint] = useState("");
+  const [customModel, setCustomModel] = useState("");
+  const [customApiKey, setCustomApiKey] = useState("");
+  const [hasCustomKey, setHasCustomKey] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -131,6 +136,10 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
         setContextWindow(s.contextWindow || "128k");
         setCodeOptimization(s.codeOptimization !== false);
         setShowThinking(s.showThinking !== false);
+        setCustomEndpoint(s.customEndpoint || "");
+        setCustomModel(s.customModel || "");
+        setHasCustomKey(!!s.hasCustomKey);
+        setCustomApiKey("");
       }
     } catch (err) {
       console.error("Failed to load engine settings:", err);
@@ -245,6 +254,9 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
           contextWindow,
           codeOptimization,
           showThinking,
+          customEndpoint,
+          customModel,
+          ...(customApiKey.trim() ? { customApiKey: customApiKey.trim() } : {}),
         }),
       });
       const data = await res.json();
@@ -918,6 +930,57 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* Senin modelin (önce burası denenir, olmazsa buluta düşer) */}
+              <div className="p-4 rounded-xl bg-white/[0.02] border border-emerald-500/20 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-xs text-slate-200">
+                    🤖 Senin Modelin (HilmanAI-7B)
+                  </span>
+                  <span className="text-[10px] font-mono text-emerald-400">
+                    {customEndpoint ? "● bağlı" : "○ kapalı"}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  HF Space veya kendi sunucunun adresini yaz (örn.{" "}
+                  <span className="font-mono">https://kullanici-adi-hilmanai-7b.hf.space</span>).
+                  Doluysa tüm cevaplar önce senin modelinden gelir; uyuyorsa site otomatik buluta düşer.
+                </p>
+                <div className="space-y-1">
+                  <label className="text-[11px] text-slate-400">Endpoint (https://... — /v1 olmadan)</label>
+                  <input
+                    type="text"
+                    value={customEndpoint}
+                    onChange={(e) => setCustomEndpoint(e.target.value)}
+                    placeholder="https://....hf.space"
+                    className="w-full bg-[#13151b] text-slate-200 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                  />
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-400">Model adı (isteğe bağlı)</label>
+                    <input
+                      type="text"
+                      value={customModel}
+                      onChange={(e) => setCustomModel(e.target.value)}
+                      placeholder="hilmanai-7b"
+                      className="w-full bg-[#13151b] text-slate-200 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] text-slate-400">
+                      API anahtarı {hasCustomKey ? "(kayıtlı ✓ — boş bırakılırsa korunur)" : "(gerekirse)"}
+                    </label>
+                    <input
+                      type="password"
+                      value={customApiKey}
+                      onChange={(e) => setCustomApiKey(e.target.value)}
+                      placeholder={hasCustomKey ? "••••••••" : "gerekirse yaz"}
+                      className="w-full bg-[#13151b] text-slate-200 border border-white/10 rounded-xl px-3 py-2 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
           )}

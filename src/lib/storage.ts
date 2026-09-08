@@ -83,6 +83,9 @@ export interface AppSettingsData {
   contextWindow: "32k" | "64k" | "128k";
   codeOptimization: boolean;
   showThinking: boolean;
+  customEndpoint?: string | null; // senin modelin (OpenAI uyumlu /v1). Önce burası denenir.
+  customModel?: string | null;
+  customApiKey?: string | null;
   hfToken?: string;
   groqApiKey?: string;
   openrouterApiKey?: string;

@@ -17,6 +17,9 @@ export async function GET(req: NextRequest) {
         maxTokens: settings.maxTokens,
         systemPrompt: session.isAdmin ? settings.systemPrompt : undefined,
         personalPrompt: user?.personalPrompt || "",
+        customEndpoint: session.isAdmin ? (settings as any).customEndpoint || "" : undefined,
+        customModel: session.isAdmin ? (settings as any).customModel || "" : undefined,
+        hasCustomKey: session.isAdmin ? !!((settings as any).customApiKey || "") : undefined,
         reasoningDepth: settings.reasoningDepth || "deep",
         contextWindow: settings.contextWindow || "128k",
         codeOptimization: settings.codeOptimization !== false,
@@ -68,11 +71,17 @@ export async function POST(req: NextRequest) {
       if (body.contextWindow !== undefined) patch.contextWindow = body.contextWindow ?? "128k";
       if (body.codeOptimization !== undefined) patch.codeOptimization = body.codeOptimization !== false;
       if (body.showThinking !== undefined) patch.showThinking = body.showThinking !== false;
+      // Senin modelin (sadece admin): Space/sunucu endpointi
+      if (body.customEndpoint !== undefined) patch.customEndpoint = String(body.customEndpoint || "").trim() || null;
+      if (body.customModel !== undefined) patch.customModel = String(body.customModel || "").trim() || null;
+      if (typeof body.customApiKey === "string" && body.customApiKey.trim()) {
+        patch.customApiKey = body.customApiKey.trim();
+      }
       updated = await updateSettings(patch);
     }
 
     const user = hilmanStorage.getUser(session.email);
-    // Token'ları asla yanıta koyma
+    // Token/endpoint'ler yanıta ASLA konmaz (sadece admin POST ile yazabilir)
     return NextResponse.json({
       success: true,
       settings: {
@@ -81,6 +90,9 @@ export async function POST(req: NextRequest) {
         maxTokens: updated.maxTokens,
         systemPrompt: session.isAdmin ? updated.systemPrompt : undefined,
         personalPrompt: user?.personalPrompt || "",
+        customEndpoint: session.isAdmin ? (updated as any).customEndpoint || "" : undefined,
+        customModel: session.isAdmin ? (updated as any).customModel || "" : undefined,
+        hasCustomKey: session.isAdmin ? !!((updated as any).customApiKey || "") : undefined,
         reasoningDepth: (updated as any).reasoningDepth || "deep",
         contextWindow: (updated as any).contextWindow || "128k",
         codeOptimization: (updated as any).codeOptimization !== false,

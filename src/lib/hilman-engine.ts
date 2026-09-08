@@ -862,6 +862,50 @@ async function tryExternalLLM(
     ...messages.filter((m) => m.role !== "system").slice(-10),
   ];
 
+  // 0. SENİN MODELİN (önce burası: HF Space / kendi sunucun, OpenAI uyumlu /v1)
+  // Ayar: admin paneli veya CUSTOM_LLM_ENDPOINT ortam değişkeni. Olmazsa zincir eskiye düşer.
+  const customEndpoint = (storageSettings?.customEndpoint?.trim() || process.env.CUSTOM_LLM_ENDPOINT?.trim() || "").replace(/\/$/, "");
+  if (customEndpoint) {
+    const customModel =
+      storageSettings?.customModel?.trim() || process.env.CUSTOM_LLM_MODEL?.trim() || "hilmanai";
+    const customKey = storageSettings?.customApiKey?.trim() || process.env.CUSTOM_LLM_KEY?.trim() || "";
+    try {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (customKey) headers.Authorization = `Bearer ${customKey}`;
+      const resp = await fetchWithTimeout(
+        `${customEndpoint}/chat/completions`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model: customModel,
+            messages: apiMessages,
+            max_tokens: 768,
+            temperature: 0.7,
+          }),
+        },
+        60000
+      );
+      if (resp.ok) {
+        const data = await resp.json();
+        let text = data.choices?.[0]?.message?.content || "";
+        let reasoning = data.choices?.[0]?.message?.reasoning_content || "";
+        if (text.includes("<think>")) {
+          const match = text.match(/<think>([\s\S]*?)<\/think>/);
+          if (match) {
+            if (!reasoning) reasoning = match[1].trim();
+            text = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+          }
+        }
+        if (text.trim()) {
+          return { success: true, text: enforceHilmanIdentity(text.trim()), reasoning: reasoning.trim(), source: "hilmanai-custom" };
+        }
+      }
+    } catch (e: any) {
+      console.warn("[HilmanAI] Custom endpoint error:", e.message);
+    }
+  }
+
   // 1. Google Gemini (Varsa en hızlı, en güncel ve en zeki)
   if (geminiKey) {
     try {
@@ -1727,12 +1771,21 @@ function hashStr(s: string): number {
   return h;
 }
 
-/** Son konuşulan anlamlı konu (mevcut mesaj hariç) */
-function previousTopic(history: Array<{ role: string; content: string }>): string | null {
+/** Son konuşulan anlamlı konu (mevcut mesaj hariç, kendisiyle aynıysa yok say) */
+function previousTopic(
+  history: Array<{ role: string; content: string }>,
+  current: string
+): string | null {
   const users = history.filter((m) => m.role === "user").map((m) => (m.content || "").trim());
   // Son kullanıcı mesajı = mevcut soru; bir öncekine bak
   const prev = users.length > 1 ? users[users.length - 2] : null;
   if (!prev || prev.length < 4) return null;
+  const normPrev = normalizeTr(prev);
+  const normCur = normalizeTr(current);
+  // Aynı/neredeyse aynı soru tekrarlandıysa "önceki konu" sayılmaz
+  if (normPrev === normCur || normCur.includes(normPrev) || normPrev.includes(normCur)) {
+    return null;
+  }
   const clean = prev.replace(/[?.,!]+$/g, "").trim();
   if (isCasualGreeting(prev) || isApprovalFollowUp(prev)) return null;
   return clean.length > 48 ? clean.slice(0, 48).trim() + "…" : clean;
@@ -1748,7 +1801,7 @@ function buildVariedClarifier(
   mode: "düşünen" | "pro" | "hızlı"
 ): { text: string; reasoning: string } {
   const subject = userPrompt.replace(/[?.,!]+$/g, "").trim().slice(0, 42) || "bu konu";
-  const topic = previousTopic(history);
+  const topic = previousTopic(history, userPrompt);
   const variants: string[] = [
     `Hmm, "${subject}" dediğini tam çözemedim — biraz daha açar mısın? Bu arada benden şunları isteyebilirsin:\n\n- 💻 **Kod:** "python ile ..." / "bana ... sitesi yap"\n- 🔍 **Araştırma:** "... nedir?" / "... ne zaman?"\n- 🎨 **Görsel:** "... resmi çiz"\n- 🎬 **Video:** "... videosu yap"`,
     `"${subject}" — ilginç bir giriş! Sana en iyi cevabı vermem için küçük bir ipucu lazım: **bilgi mi** arıyorsun, **kod mu** yazmamı istiyorsun, yoksa **görsel/video** mi üreteyim?`,

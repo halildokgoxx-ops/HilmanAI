@@ -32,6 +32,10 @@ services:
         sync: false
       - key: POLLINATIONS_API_KEY
         sync: false # Gerçek video üretimi için (yoksa dürüst bilgi mesajı gösterilir)
+      - key: CUSTOM_LLM_ENDPOINT
+        sync: false # Senin modelin (örn. https://xxx.hf.space) — önce burası denenir
+      - key: CUSTOM_LLM_MODEL
+        value: hilmanai-7b
     # Kalıcı disk (ücretli planlarda): JSON veritabanı restart/deploy'da silinmez.
     # Free planda disk eklenemez — o durumda geçmişler restart'ta sıfırlanır.
     # Açmak için planı yükseltip aşağıdaki bloğu aktif edin:
