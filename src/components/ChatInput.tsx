@@ -12,6 +12,7 @@ import {
   Loader2,
   Brain,
   Sparkles,
+  Square,
   Image as ImageIcon,
   Video as VideoIcon,
   MessageSquare,
@@ -27,6 +28,8 @@ interface ChatInputProps {
     toolType?: ToolType
   ) => void;
   isLoading: boolean;
+  streamActive?: boolean;
+  onStopStream?: () => void;
   onSendTestMessage: () => void;
   currentMode: ChatModeId;
   onSelectMode: (mode: ChatModeId) => void;
@@ -35,6 +38,8 @@ interface ChatInputProps {
 export function ChatInput({
   onSendMessage,
   isLoading,
+  streamActive = false,
+  onStopStream,
   onSendTestMessage,
   currentMode,
   onSelectMode,
@@ -401,24 +406,35 @@ export function ChatInput({
                 : activeModeConfig.badge}
             </span>
 
-            {/* Send Button */}
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={isLoading || (!input.trim() && !attachedFile)}
-              className={`p-2 rounded-xl flex items-center justify-center transition-all ${
-                input.trim() || attachedFile
-                  ? "bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95"
-                  : "bg-white/5 text-slate-600 cursor-not-allowed"
-              }`}
-              title="Gönder (Enter)"
-            >
-              {isLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-              ) : (
-                <Send className="w-4 h-4" />
-              )}
-            </button>
+            {/* Send / Stop Button */}
+            {streamActive ? (
+              <button
+                type="button"
+                onClick={onStopStream}
+                className="p-2 rounded-xl flex items-center justify-center bg-red-500/20 hover:bg-red-500/30 border border-red-500/40 text-red-300 transition-all active:scale-95"
+                title="Üretimi Durdur"
+              >
+                <Square className="w-4 h-4 fill-current" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSend}
+                disabled={isLoading || (!input.trim() && !attachedFile)}
+                className={`p-2 rounded-xl flex items-center justify-center transition-all ${
+                  input.trim() || attachedFile
+                    ? "bg-gradient-to-tr from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/20 hover:brightness-110 active:scale-95"
+                    : "bg-white/5 text-slate-600 cursor-not-allowed"
+                }`}
+                title="Gönder (Enter)"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

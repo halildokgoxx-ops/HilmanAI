@@ -792,7 +792,7 @@ function translatePrompt(turkishPrompt: string): string {
 // İç parametre sızıntısı temizleyici: modelin ağzından kaçan
 // "benim temperature değerim 0.7" / "sistem promptum şu..." tarzı
 // BİRİNCİL ŞAHIS ifşaları nötralize eder. Genel teknik anlatıma dokunmaz.
-function stripParameterLeaks(text: string): string {
+export function stripParameterLeaks(text: string): string {
   if (!text) return text;
   let out = text;
   out = out.replace(
@@ -863,8 +863,7 @@ function trySolveMath(prompt: string): string | null {
 // ("ben Qwen'im", "I am Meta AI"...). Yalnızca BİRİNCİL ŞAHIS kimlik
 // iddialarını HilmanAI ile değiştirir; kullanıcı bir modeli SORDUĞUNDA
 // verilen eğitici bilgiler (DeepSeek nedir vb.) aynen korunur.
-function enforceHilmanIdentity(text: string): string {
-  if (!text) return text;
+export function enforceHilmanIdentity(text: string): string {  if (!text) return text;
   // Sürüm eklerini de yut (Qwen2.5), ama cümle sonundaki tek noktayı bırak:
   // V = isteğe bağlı "kelime(.kelime)*" kuyruğu
   const V = String.raw`(?:\w+(?:\.\w+)*)?`;

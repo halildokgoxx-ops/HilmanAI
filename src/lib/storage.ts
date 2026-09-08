@@ -781,6 +781,15 @@ class HilmanStorage {
     return (data.messages || []).find((m) => m.id === id) || null;
   }
 
+  public setMessageSource(id: string, source: string): boolean {
+    const data = this.read();
+    const msg = (data.messages || []).find((m) => m.id === id);
+    if (!msg) return false;
+    (msg as any).source = source;
+    this.write(data);
+    return true;
+  }
+
   public setMessageFeedback(id: string, feedback: "like" | "dislike" | null): boolean {    const data = this.read();
     const msg = data.messages.find((m) => m.id === id);
     if (!msg) return false;

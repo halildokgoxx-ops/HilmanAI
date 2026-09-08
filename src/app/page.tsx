@@ -283,6 +283,192 @@ export default function HilmanChatPage() {
     setMessages((prev) => [...prev, tempUserMsg]);
     setIsLoading(true);
 
+    // Canlı akış yalnızca düz metin sohbette denenir
+    if (!attachedFile && (toolType || "chat") === "chat") {
+      const streamed = await sendStream(userText, mode);
+      if (streamed) return;
+    }
+    await sendNormal(userText, mode, attachedFile, toolType);
+  };
+
+  /** Asistan mesajı sonrası ortak işler: konuşma takibi + kota + kod önizleme */
+  const afterAssistantMessage = (msg: MessageData, conversationId: string, isNew: boolean) => {
+    if (isNew) {
+      setActiveConversationId(conversationId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(convStorageKey(), conversationId);
+      }
+      loadConversations(false);
+    }
+
+    setMessages((prev) => [...prev, msg]);
+
+    // Kota göstergesini güncel tut
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((md) => {
+        if (md.success && md.user) setUser(md.user);
+      })
+      .catch(() => {});
+
+    // Auto-detect code in assistant reply and open live preview panel
+    const codeMatch = msg.content.match(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/);
+    if (codeMatch && codeMatch[2]) {
+      setPreviewLang(codeMatch[1] || "html");
+      setPreviewCode(codeMatch[2].trim());
+      setCodePreviewOpen(true);
+    }
+  };
+
+  const streamAbortRef = useRef<AbortController | null>(null);
+  const [streamActive, setStreamActive] = useState(false);
+
+  const handleStopStream = () => {
+    streamAbortRef.current?.abort();
+  };
+
+  /** Canlı SSE akışı — true dönerse işlem tamamdır; false normal yola düşer */
+  const sendStream = async (userText: string, mode: ChatModeId): Promise<boolean> => {
+    const tempId = `stream-${Date.now()}`;
+    const controller = new AbortController();
+    streamAbortRef.current = controller;
+    setStreamActive(true);
+    let abortedByUser = false;
+    controller.signal.addEventListener("abort", () => {
+      abortedByUser = true;
+    });
+
+    const pushTemp = () => {
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === tempId)) return prev;
+        const temp: MessageData = {
+          id: tempId,
+          conversationId: activeConversationId || "new",
+          role: "assistant",
+          content: "",
+          reasoning: null,
+          model: selectedModel,
+          provider: "hilman-engine",
+          tokensUsed: null,
+          latencyMs: null,
+          isError: false,
+          createdAt: new Date().toISOString(),
+        };
+        return [...prev, temp];
+      });
+    };
+    const dropTemp = () => {
+      setMessages((prev) => prev.filter((m) => m.id !== tempId));
+    };
+
+    try {
+      const res = await fetch("/api/chat/stream", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversationId: activeConversationId,
+          message: userText,
+          model: selectedModel,
+          mode,
+        }),
+        signal: controller.signal,
+      });
+
+      if (res.status === 401) {
+        setUser(null);
+        dropTemp();
+        setIsLoading(false);
+        setStreamActive(false);
+        return true;
+      }
+      const ctype = res.headers.get("content-type") || "";
+      if (!res.ok || !ctype.includes("text/event-stream")) {
+        dropTemp();
+        setStreamActive(false);
+        return false; // normal yola düş
+      }
+
+      pushTemp();
+      const reader = res.body?.getReader();
+      if (!reader) {
+        dropTemp();
+        setStreamActive(false);
+        return false;
+      }
+      const decoder = new TextDecoder();
+      let buf = "";
+      let finished = false;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() || "";
+        for (const part of parts) {
+          const line = part.trim();
+          if (!line.startsWith("data:")) continue;
+          let evt: any = null;
+          try {
+            evt = JSON.parse(line.slice(5).trim());
+          } catch {
+            continue;
+          }
+          if (evt.token) {
+            const piece = evt.token as string;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === tempId ? { ...m, content: m.content + piece } : m))
+            );
+          } else if (evt.fallback) {
+            dropTemp();
+            setStreamActive(false);
+            try {
+              await reader.cancel();
+            } catch {}
+            return false; // normal yola düş
+          } else if (evt.done && evt.message) {
+            finished = true;
+            setMessages((prev) => prev.filter((m) => m.id !== tempId));
+            afterAssistantMessage(evt.message, evt.conversationId, !!evt.isNewConversation);
+          }
+        }
+        if (finished) break;
+      }
+      if (!finished) {
+        // Akış yarıda kesildiyse (kullanıcı durdurduysa sessizce bitir)
+        if (abortedByUser) {
+          dropTemp();
+          setIsLoading(false);
+          setStreamActive(false);
+          return true;
+        }
+        dropTemp();
+        setStreamActive(false);
+        return false;
+      }
+      setIsLoading(false);
+      setStreamActive(false);
+      return true;
+    } catch (err: any) {
+      if (abortedByUser || err?.name === "AbortError") {
+        dropTemp();
+        setIsLoading(false);
+        setStreamActive(false);
+        return true;
+      }
+      dropTemp();
+      setStreamActive(false);
+      return false; // ağ hatası → normal yola düş
+    } finally {
+      streamAbortRef.current = null;
+    }
+  };
+
+  const sendNormal = async (
+    userText: string,
+    mode: ChatModeId = currentMode,
+    attachedFile?: { name: string; content: string; type?: string } | null,
+    toolType: ToolType = "chat"
+  ) => {
     try {
       const res = await fetch("/api/chat", {
         method: "POST",
@@ -305,31 +491,7 @@ export default function HilmanChatPage() {
       }
 
       if (data.success && data.message) {
-        if (data.isNewConversation) {
-          setActiveConversationId(data.conversationId);
-          if (typeof window !== "undefined") {
-            localStorage.setItem(convStorageKey(), data.conversationId);
-          }
-          loadConversations(false);
-        }
-
-        setMessages((prev) => [...prev, data.message]);
-
-        // Kota göstergesini güncel tut
-        fetch("/api/auth/me")
-          .then((r) => r.json())
-          .then((md) => {
-            if (md.success && md.user) setUser(md.user);
-          })
-          .catch(() => {});
-
-        // Auto-detect code in assistant reply and open live preview panel
-        const codeMatch = data.message.content.match(/```([a-zA-Z0-9_-]*)\n([\s\S]*?)```/);
-        if (codeMatch && codeMatch[2]) {
-          setPreviewLang(codeMatch[1] || "html");
-          setPreviewCode(codeMatch[2].trim());
-          setCodePreviewOpen(true);
-        }
+        afterAssistantMessage(data.message, data.conversationId, !!data.isNewConversation);
       } else {
         const errorMsg: MessageData = {
           id: `err-${Date.now()}`,
@@ -672,6 +834,8 @@ export default function HilmanChatPage() {
         <ChatInput
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
+          streamActive={streamActive}
+          onStopStream={handleStopStream}
           onSendTestMessage={handleSendTestMessage}
           currentMode={currentMode}
           onSelectMode={setCurrentMode}
