@@ -3,7 +3,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
   Sparkles,
-  User,
   Copy,
   Check,
   Volume2,
@@ -166,17 +165,13 @@ export function ChatMessage({
     <>
       <div
         className={`group relative flex gap-3.5 md:gap-4 py-4 px-3 md:px-6 transition-colors ${isUser
-            ? "bg-transparent hover:bg-white/[0.01]"
+            ? "justify-end bg-transparent hover:bg-white/[0.01]"
             : "bg-[#111319]/70 hover:bg-[#111319] border-y border-white/[0.03]"
           }`}
       >
-        {/* Avatar */}
-        <div className="shrink-0 pt-0.5">
-          {isUser ? (
-            <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700/80 flex items-center justify-center text-slate-300 shadow-sm">
-              <User className="w-4 h-4" />
-            </div>
-          ) : (
+        {/* Avatar — yalnızca asistan mesajında (kullanıcı PP'si gizli) */}
+        {!isUser && (
+          <div className="shrink-0 pt-0.5">
             <div className="relative">
               <div className="w-8 h-8 rounded-xl overflow-hidden border border-cyan-500/30 shadow-md shadow-indigo-500/20 bg-black">
                 <img
@@ -186,13 +181,13 @@ export function ChatMessage({
                 />
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Message Content */}
-        <div className="flex-1 min-w-0 space-y-2">
+        <div className={`min-w-0 space-y-2 ${isUser ? "max-w-[88%] sm:max-w-[78%] rounded-2xl rounded-br-md bg-emerald-500/[0.08] border border-emerald-500/15 px-4 py-3" : "flex-1"}`}>
           {/* Header line */}
-          <div className="flex items-center justify-between text-xs text-slate-400">
+          <div className={`flex items-center text-xs text-slate-400 ${isUser ? "justify-end" : "justify-between"}`}>
             <div className="flex items-center gap-2">
               {!isUser && (
                 <span className="font-semibold text-slate-200">HilmanAI</span>

@@ -126,6 +126,10 @@ export function classifyUserPrompt(
     norm.includes("web sayfası") ||
     norm.includes("internet sitesi") ||
     norm.includes("internet sayfasi") ||
+    // Yalın "site/klon/kopya" kelime sınırlı aranır ("üniversite", "siklon" yakalanmasın)
+    /(^|[\s.,!?:;])sites?(i|si|sini|ye|yi|de|den|ler)?([\s.,!?:;]|$)/.test(norm) ||
+    /(^|[\s.,!?:;])klon\w*/.test(norm) ||
+    /(^|[\s.,!?:;])kopya/.test(norm) ||
     norm.includes("uygulama") ||
     norm.includes("uygulamasi") ||
     norm.includes("uygulaması") ||
@@ -392,10 +396,238 @@ else render();
 </body>
 </html>`;
 
-function buildBlogProjectResponse(): { text: string; reasoning: string } {
+const YOUTUBE_TEMPLATE_HTML = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MyTube - HilmanAI ile yapıldı</title>
+<style>
+  * { box-sizing: border-box; } body { margin: 0; background: #0f0f0f; color: #f1f1f1; font-family: system-ui, sans-serif; }
+  header { display: flex; gap: 12px; align-items: center; padding: 10px 18px; position: sticky; top: 0; background: #0f0f0f; z-index: 5; }
+  .logo { font-size: 20px; font-weight: 800; } .logo span { background: #f00; border-radius: 8px; padding: 1px 7px; margin-right: 4px; }
+  #q { flex: 1; max-width: 560px; background: #121212; border: 1px solid #333; color: #fff; border-radius: 20px; padding: 9px 16px; }
+  .chips { display: flex; gap: 8px; padding: 10px 18px; overflow-x: auto; }
+  .chips button { background: #272727; color: #fff; border: 0; border-radius: 8px; padding: 7px 12px; white-space: nowrap; cursor: pointer; }
+  .chips button.on { background: #fff; color: #000; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 16px; padding: 10px 18px 30px; }
+  .card { cursor: pointer; } .card img { width: 100%; border-radius: 12px; aspect-ratio: 16/9; object-fit: cover; }
+  .card h3 { margin: 8px 0 4px; font-size: 15px; } .card p { margin: 0; color: #aaa; font-size: 12px; }
+  #player { position: fixed; inset: 0; background: rgba(0,0,0,.88); display: none; align-items: center; justify-content: center; z-index: 20; padding: 16px; }
+  #player.open { display: flex; } .box { background: #1c1c1c; border-radius: 14px; max-width: 760px; width: 100%; padding: 18px; }
+  .box img { width: 100%; border-radius: 10px; } .row { display: flex; gap: 8px; margin-top: 10px; }
+  .btn { background: #fff; color: #000; border: 0; border-radius: 18px; padding: 8px 14px; font-weight: 700; cursor: pointer; }
+  .ghost { background: #333; color: #fff; border: 0; border-radius: 18px; padding: 8px 14px; cursor: pointer; }
+</style>
+</head>
+<body>
+<header><div class="logo"><span>▶</span>MyTube</div><input id="q" placeholder="Ara..." oninput="render()" /></header>
+<div class="chips" id="chips"></div>
+<div class="grid" id="grid"></div>
+<div id="player" onclick="if(event.target===this)closeP()"><div class="box" id="pbox"></div></div>
+<script>
+const cats = ["Tümü", "Müzik", "Oyun", "Yazılım", "Komedi", "Belgesel"];
+const vids = [
+  { id: 1, t: "Sıfırdan HTML Öğren", c: "Yazılım", ch: "Kod Stüdyo", v: "1,2 Mn", img: "https://picsum.photos/seed/mt1/480/270", d: "3 saatte modern HTML + CSS." },
+  { id: 2, t: "2026 Hit Müzikler", c: "Müzik", ch: "Müzik Kutusu", v: "860 B", img: "https://picsum.photos/seed/mt2/480/270", d: "Haftanın en çok dinlenenleri." },
+  { id: 3, t: "Efsane Maç Özetleri", c: "Oyun", ch: "Spor Arena", v: "2,1 Mn", img: "https://picsum.photos/seed/mt3/480/270", d: "Unutulmaz anlar derlemesi." },
+  { id: 4, t: "Gülme Garantili Skeçler", c: "Komedi", ch: "Kahkaha TV", v: "540 B", img: "https://picsum.photos/seed/mt4/480/270", d: "Yeni sezon komedi skeçleri." },
+  { id: 5, t: "Uzayın Derinlikleri", c: "Belgesel", ch: "Bilim Vakti", v: "320 B", img: "https://picsum.photos/seed/mt5/480/270", d: "Kara delikler ve ötesi." },
+  { id: 6, t: "Python ile Oyun Yapımı", c: "Yazılım", ch: "Kod Stüdyo", v: "410 B", img: "https://picsum.photos/seed/mt6/480/270", d: "Pygame ile ilk oyunun." },
+  { id: 7, t: "Canlı Konser Kaydı", c: "Müzik", ch: "Müzik Kutusu", v: "1,7 Mn", img: "https://picsum.photos/seed/mt7/480/270", d: "Stadyum konserinden seçmeler." },
+  { id: 8, t: "Hızlı Yemek Tarifleri", c: "Komedi", ch: "Mutfak Show", v: "290 B", img: "https://picsum.photos/seed/mt8/480/270", d: "15 dakikada 3 tarif." }
+];
+let likes = JSON.parse(localStorage.getItem("mt_likes") || "{}");
+let active = "Tümü";
+const chipBox = document.getElementById("chips");
+cats.forEach(c => { const b = document.createElement("button"); b.textContent = c; if (c === active) b.classList.add("on"); b.onclick = () => { active = c; chipBox.querySelectorAll("button").forEach(x => x.classList.remove("on")); b.classList.add("on"); render(); }; chipBox.appendChild(b); });
+function render() {
+  const q = (document.getElementById("q").value || "").toLowerCase();
+  const g = document.getElementById("grid"); g.innerHTML = "";
+  vids.filter(v => (active === "Tümü" || v.c === active) && (v.t + v.ch).toLowerCase().includes(q)).forEach(v => {
+    const d = document.createElement("div"); d.className = "card";
+    d.innerHTML = \`<img src="\${v.img}" loading="lazy" /><h3>\${v.t}</h3><p>\${v.ch} • \${v.v} izlenme • ❤ \${likes[v.id] || 0}</p>\`;
+    d.onclick = () => openP(v.id); g.appendChild(d);
+  });
+}
+function openP(id) {
+  const v = vids.find(x => x.id === id);
+  document.getElementById("pbox").innerHTML = \`<img src="\${v.img}" /><h2>\${v.t}</h2><p style="color:#aaa">\${v.ch} • \${v.v} izlenme</p><p>\${v.d}</p>
+  <div class="row"><button class="btn" onclick="like(\${v.id})">❤ Beğen (\${likes[v.id] || 0})</button>
+  <button class="ghost" onclick="share(\${v.id})">🔗 Paylaş</button>
+  <button class="ghost" onclick="closeP()">Kapat</button></div>\`;
+  document.getElementById("player").classList.add("open");
+}
+function closeP() { document.getElementById("player").classList.remove("open"); }
+function like(id) { likes[id] = (likes[id] || 0) + 1; localStorage.setItem("mt_likes", JSON.stringify(likes)); openP(id); render(); }
+function share(id) { const u = location.href.split("#")[0] + "#izle-" + id; navigator.clipboard.writeText(u); alert("Bağlantı kopyalandı!"); }
+if (location.hash.startsWith("#izle-")) { const id = +location.hash.replace("#izle-", ""); setTimeout(() => openP(id), 60); }
+render();
+</script>
+</body>
+</html>`;
+
+const SITE_TEMPLATE_HTML = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sitem - HilmanAI ile yapıldı</title>
+<style>
+  * { box-sizing: border-box; } body { margin: 0; font-family: system-ui, sans-serif; background: #0b0d12; color: #e8ecf4; }
+  header { display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; border-bottom: 1px solid #232a3d; }
+  .hero { text-align: center; padding: 70px 20px; background: linear-gradient(135deg, #064e3b44, #0ea5e944); }
+  .hero h1 { font-size: 40px; margin: 0 0 10px; } .hero p { color: #9aa4b8; }
+  .cta { display: inline-block; margin-top: 18px; background: #10b981; color: #04110b; font-weight: 800; padding: 12px 26px; border-radius: 12px; text-decoration: none; }
+  .feats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; max-width: 900px; margin: 0 auto; padding: 30px 20px; }
+  .f { background: #141824; border: 1px solid #232a3d; border-radius: 14px; padding: 18px; }
+  form { max-width: 520px; margin: 0 auto 40px; padding: 0 20px; display: grid; gap: 10px; }
+  input, textarea { background: #141824; border: 1px solid #232a3d; color: #fff; border-radius: 10px; padding: 11px 13px; }
+  button { background: #10b981; color: #04110b; border: 0; border-radius: 10px; padding: 12px; font-weight: 800; cursor: pointer; }
+  footer { text-align: center; color: #9aa4b8; font-size: 12px; padding: 24px; }
+</style>
+</head>
+<body>
+<header><b>✨ Sitem</b><nav><a href="#ozellikler" style="color:#9aa4b8;margin-right:14px">Özellikler</a><a href="#iletisim" style="color:#9aa4b8">İletişim</a></nav></header>
+<section class="hero"><h1>Hoş Geldin!</h1><p>Bu site HilmanAI başlangıç şablonuyla dakikalar içinde hazırlandı.</p><a class="cta" href="#iletisim">Hemen Başla</a></section>
+<section class="feats" id="ozellikler">
+  <div class="f"><h3>⚡ Hızlı</h3><p>Tek dosya, sıfır bağımlılık, anında açılır.</p></div>
+  <div class="f"><h3>📱 Responsive</h3><p>Telefon, tablet ve masaüstünde kusursuz.</p></div>
+  <div class="f"><h3>🌙 Modern</h3><p>Karanlık tema, şık kartlar, yumuşak renkler.</p></div>
+</section>
+<form id="iletisim" onsubmit="send(event)"><h3>İletişim</h3><input id="n" placeholder="Adın" required /><input id="e" type="email" placeholder="E-posta" required /><textarea id="m" rows="4" placeholder="Mesajın" required></textarea><button>Gönder</button><p id="ok" style="color:#10b981"></p></form>
+<footer>© 2026 Sitem • HilmanAI ile yapıldı</footer>
+<script>
+function send(ev) {
+  ev.preventDefault();
+  const box = JSON.parse(localStorage.getItem("site_msgs") || "[]");
+  box.push({ n: document.getElementById("n").value, e: document.getElementById("e").value, m: document.getElementById("m").value, t: Date.now() });
+  localStorage.setItem("site_msgs", JSON.stringify(box));
+  document.getElementById("ok").textContent = "Mesajın alındı, teşekkürler!";
+  ev.target.reset();
+}
+</script>
+</body>
+</html>`;
+
+const GAME_TEMPLATE_HTML = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Refleks Oyunu - HilmanAI ile yapıldı</title>
+<style>
+  body { margin: 0; background: #0b0d12; color: #fff; font-family: system-ui, sans-serif; text-align: center; }
+  h1 { margin: 22px 0 4px; } #hud { display: flex; gap: 18px; justify-content: center; color: #9aa4b8; margin-bottom: 12px; }
+  #hud b { color: #10b981; font-size: 20px; }
+  #area { position: relative; margin: 0 auto; max-width: 560px; height: 380px; background: #141824; border: 1px solid #232a3d; border-radius: 16px; overflow: hidden; cursor: crosshair; }
+  #box { position: absolute; width: 56px; height: 56px; border-radius: 14px; background: #10b981; display: none; align-items: center; justify-content: center; font-size: 24px; }
+  button { background: #10b981; color: #04110b; border: 0; border-radius: 10px; padding: 12px 26px; font-weight: 800; cursor: pointer; margin-top: 14px; }
+  #best { color: #9aa4b8; font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<h1>🎯 Refleks Oyunu</h1>
+<div id="hud"><span>Skor: <b id="s">0</b></span><span>Süre: <b id="t">30</b>sn</span></div>
+<div id="area" onclick="miss(event)"><div id="box" onclick="hit(event)">⭐</div></div>
+<button id="start" onclick="start()">Başla</button>
+<div id="best"></div>
+<script>
+let score = 0, time = 30, timer = null, best = +(localStorage.getItem("rx_best") || 0);
+document.getElementById("best").textContent = "Rekor: " + best;
+function start() {
+  score = 0; time = 30; upd();
+  document.getElementById("start").style.display = "none";
+  next();
+  clearInterval(timer);
+  timer = setInterval(() => {
+    time--; document.getElementById("t").textContent = time;
+    if (time <= 0) { clearInterval(timer); end(); }
+  }, 1000);
+}
+function next() {
+  const b = document.getElementById("box"), a = document.getElementById("area");
+  b.style.left = Math.random() * (a.clientWidth - 56) + "px";
+  b.style.top = Math.random() * (a.clientHeight - 56) + "px";
+  b.style.display = "flex";
+}
+function hit(ev) { ev.stopPropagation(); score++; upd(); next(); }
+function miss() { score = Math.max(0, score - 1); upd(); }
+function upd() { document.getElementById("s").textContent = score; }
+function end() {
+  document.getElementById("box").style.display = "none";
+  document.getElementById("start").style.display = "inline-block";
+  if (score > best) { best = score; localStorage.setItem("rx_best", best); }
+  document.getElementById("best").textContent = "Oyun bitti! Skorun: " + score + " • Rekor: " + best;
+}
+</script>
+</body>
+</html>`;
+
+// Proje türünü sez (blog / youtube-klon / oyun / genel site)
+function detectProjectKind(text: string): "blog" | "youtube" | "game" | "site" {
+  const n = normalizeTr(text);
+  if (n.includes("blog")) return "blog";
+  if (
+    n.includes("youtube") ||
+    n.includes("vimeo") ||
+    n.includes("dailymotion") ||
+    n.includes("video sitesi") ||
+    n.includes("film sitesi") ||
+    n.includes("dizi sitesi") ||
+    (n.includes("klon") && (n.includes("video") || n.includes("film") || n.includes("dizi"))) ||
+    n.includes("mytube")
+  ) {
+    return "youtube";
+  }
+  if (n.includes("oyun")) return "game";
+  return "site";
+}
+
+// Genel site şablonu için isim+fiil birlikteliği şartı
+function hasSiteBuildWords(n: string): boolean {
+  const noun =
+    n.includes("site") ||
+    n.includes("websitesi") ||
+    n.includes("website") ||
+    n.includes("uygulama") ||
+    n.includes("panel") ||
+    n.includes("landing") ||
+    n.includes("portfoy") ||
+    n.includes("arayuz");
+  const verb =
+    n.includes("yap") ||
+    n.includes("hazirla") ||
+    n.includes("olustur") ||
+    n.includes("kodla") ||
+    n.includes("tasarla") ||
+    n.includes("kopya") ||
+    n.includes("klon");
+  return noun && verb;
+}
+
+function buildProjectResponse(kind: "blog" | "youtube" | "game" | "site", hint: string): { text: string; reasoning: string } {
+  const titles = {
+    blog: "Blog Sitesi",
+    youtube: "YouTube Klonu (MyTube)",
+    game: "Refleks Oyunu",
+    site: "Modern Tanıtım Sitesi",
+  };
+  const codes = {
+    blog: BLOG_TEMPLATE_HTML,
+    youtube: YOUTUBE_TEMPLATE_HTML,
+    game: GAME_TEMPLATE_HTML,
+    site: SITE_TEMPLATE_HTML,
+  };
+  const descs = {
+    blog: "yorum + kategori + arama + taslak destekli karanlık temalı blog",
+    youtube: "video ızgarası, kategori, arama, izleme penceresi, beğeni ve paylaşım linkli video platformu",
+    game: "skor + süre + rekor takipli refleks oyunu",
+    site: "hero, özellik kartları ve çalışan iletişim formlu tanıtım sitesi",
+  };
   return {
-    text: `Harika seçim! Sana **yorum + kategori + arama + sosyal medya + taslak** destekli, tek dosyalık, karanlık temalı Türkçe blog şablonu hazırladım. Dosyayı \`blog.html\` olarak kaydedip tarayıcıda açman yeterli — sağdaki **Canlı Önizleme** panelinden hemen deneyebilirsin.\n\n**İçindekiler:**\n- 🔍 Canlı arama + kategori filtreleri\n- 💬 localStorage tabanlı yorumlar, ❤ beğeniler, 🔗 paylaşım linki\n- ✍️ Otomatik taslak kaydeden yazı editörü\n- 📱 Tam responsive + karanlık tasarım\n\nBunu beğenmezsen söyle — renkleri, kategorileri veya veritabanlı (gerçek backendli) sürümü de yaparım.\n\n\`\`\`html\n${BLOG_TEMPLATE_HTML}\n\`\`\``,
-    reasoning: "Kullanıcı blog projesi istedi (veya onayladı); tüm istenen özellikleri içeren tek dosyalık başlangıç şablonu üretildi.",
+    text: `Hazır! Sana **${titles[kind]}** şablonu kodladım — ${descs[kind]}. Dosya olarak kaydet ve tarayıcıda açman yeterli; sağdaki **Canlı Önizleme** panelinden hemen oynayabilirsin.\n\nİstersen renkleri, bölümleri veya özellikleri değiştireyim — söylemen yeterli!\n\n\`\`\`html\n${codes[kind]}\n\`\`\``,
+    reasoning: `Kullanıcı "${hint}" projesi istedi; çevrimdışı hazır şablon üretildi.`,
   };
 }
 
@@ -432,7 +664,9 @@ function isApprovalFollowUp(prompt: string): boolean {
 function recentWebIntent(history: Array<{ role: string; content: string }>): string | null {
   const last = history.slice(-6);
   for (let i = last.length - 1; i >= 0; i--) {
-    const c = normalizeTr(last[i].content || "");
+    const raw = last[i].content || "";
+    const c = normalizeTr(raw);
+    const hasSite = /(^|[\s.,!?:;])sites?(i|si|sini|ye|yi|de|den|ler)?([\s.,!?:;]|$)/.test(c);
     if (
       c.includes("blog") ||
       c.includes("website") ||
@@ -442,9 +676,9 @@ function recentWebIntent(history: Array<{ role: string; content: string }>): str
       (c.includes("oyun") && (c.includes("yap") || c.includes("kod") || c.includes("yaz"))) ||
       c.includes("portfoy") ||
       c.includes("portföy") ||
-      (c.includes("site") && (c.includes("yap") || c.includes("kod") || c.includes("tasar")))
+      (hasSite && (c.includes("yap") || c.includes("kod") || c.includes("tasar") || c.includes("kopya") || c.includes("klon")))
     ) {
-      const m = last[i].content.match(/blog|websitesi|website|web sitesi|uygulama|oyun|portföy|portfoy|site/i);
+      const m = raw.match(/blog|websitesi|website|web sitesi|uygulama|oyun|portföy|portfoy|klon|site/i);
       return m ? m[0].toLowerCase() : "site";
     }
   }
@@ -723,12 +957,14 @@ async function tryExternalLLM(
   }
 
   // 3. Hugging Face Router v1 (Token geçerli ve kredisi varsa)
+  // Üç model PARALEL yarışır — ilk başarılı yanıt kazanır (seri deneme 30sn
+  // bekletiyordu, yarışta en yavaş model bile 10sn'de elenir).
   if (hfToken && hfToken.length > 10) {
     const models = isCodeRequest
       ? ["Qwen/Qwen2.5-Coder-32B-Instruct", "deepseek-ai/DeepSeek-V3", "meta-llama/Llama-3.3-70B-Instruct"]
       : ["deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct", "meta-llama/Llama-3.3-70B-Instruct"];
 
-    for (const model of models) {
+    const attempts = models.map(async (model) => {
       try {
         const resp = await fetchWithTimeout("https://router.huggingface.co/v1/chat/completions", {
           method: "POST",
@@ -742,29 +978,36 @@ async function tryExternalLLM(
             max_tokens: 2048,
             temperature: 0.7,
           }),
-        }, 10000);
+        }, 15000);
 
-        if (resp.ok) {
-          const data = await resp.json();
-          const choice = data.choices?.[0];
-          let text = choice?.message?.content || "";
-          let reasoning = choice?.message?.reasoning_content || choice?.message?.reasoning || "";
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        const choice = data.choices?.[0];
+        let text = choice?.message?.content || "";
+        let reasoning = choice?.message?.reasoning_content || choice?.message?.reasoning || "";
 
-          if (text.includes("<think>")) {
-            const match = text.match(/<think>([\s\S]*?)<\/think>/);
-            if (match) {
-              if (!reasoning) reasoning = match[1].trim();
-              text = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
-            }
-          }
-
-          if (text.trim().length > 0) {
-            return { success: true, text: text.trim(), reasoning: reasoning ? reasoning.trim() : "", source: `hf:${model}` };
+        if (text.includes("<think>")) {
+          const match = text.match(/<think>([\s\S]*?)<\/think>/);
+          if (match) {
+            if (!reasoning) reasoning = match[1].trim();
+            text = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
           }
         }
+
+        if (text.trim().length > 0) {
+          return { success: true, text: text.trim(), reasoning: reasoning ? reasoning.trim() : "", source: `hf:${model}` };
+        }
+        return null;
       } catch (e: any) {
         console.warn(`[HilmanAI] HF ${model} error:`, e.message);
+        return null;
       }
+    });
+
+    const results = await Promise.all(attempts);
+    // Sıra önceliği korunur: listede önce gelen modelin yanıtı tercih edilir
+    for (let i = 0; i < results.length; i++) {
+      if (results[i]) return results[i]!;
     }
   }
 
@@ -958,14 +1201,8 @@ function buildAutonomousResponse(
   // ("hepsini ekle", "kafana göre yap" + geçmişte blog/site konuşması)
   if (isApprovalFollowUp(userPrompt)) {
     const intent = recentWebIntent(history);
-    if (intent && intent.includes("blog")) {
-      return buildBlogProjectResponse();
-    }
     if (intent) {
-      return {
-        text: `Anlaştık, \`${intent}\` projesini en iyi varsayımlarla hazırlıyorum!\n\nBaşlamadan önce tek bir seçim yap: **(1)** tek dosyalık hızlı prototip mi, **(2)** yoksa tam yapı (çok dosyalı, veritabanlı) mı olsun? Numarayı yazman yeterli — hemen koda geçiyorum.`,
-        reasoning: "",
-      };
+      return buildProjectResponse(detectProjectKind(intent), userPrompt);
     }
     // Geçmişte proje konuşulmadıysa neyi onayladığı belirsiz — şablon değil soru sor
     return {
@@ -974,17 +1211,30 @@ function buildAutonomousResponse(
     };
   }
 
-  // 0c. DOĞRUDAN BLOG İSTEĞİ (harici API yokken bile gerçek şablon üret)
-  if (
-    normalizeTr(userPrompt).includes("blog") &&
-    (normalizeTr(userPrompt).includes("yap") ||
-      normalizeTr(userPrompt).includes("hazirla") ||
-      normalizeTr(userPrompt).includes("olustur") ||
-      normalizeTr(userPrompt).includes("kodla") ||
-      normalizeTr(userPrompt).includes("sitesi") ||
-      normalizeTr(userPrompt).includes("websitesi"))
-  ) {
-    return buildBlogProjectResponse();
+  // 0c. DOĞRUDAN PROJE İSTEĞİ (harici API yokken bile gerçek şablon üret)
+  {
+    const kind = detectProjectKind(userPrompt);
+    const n = normalizeTr(userPrompt);
+    const wantsBuild =
+      n.includes("yap") ||
+      n.includes("hazirla") ||
+      n.includes("olustur") ||
+      n.includes("kodla") ||
+      n.includes("sitesi") ||
+      n.includes("websitesi") ||
+      n.includes("klon") ||
+      n.includes("kopya");
+    if (kind !== "site" || wantsBuild) {
+      if (kind === "blog" && wantsBuild) {
+        return buildProjectResponse("blog", userPrompt);
+      }
+      if (kind !== "blog" && kind !== "site" && wantsBuild) {
+        return buildProjectResponse(kind, userPrompt);
+      }
+      if (kind === "site" && wantsBuild && hasSiteBuildWords(n)) {
+        return buildProjectResponse("site", userPrompt);
+      }
+    }
   }
 
   // 1. Selamlaşma ve Tanışma
