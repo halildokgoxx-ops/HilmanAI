@@ -207,5 +207,30 @@ export function shouldPerformWebSearch(query: string, category: string): boolean
     "taban puanları",
   ];
 
-  return searchTriggers.some((trigger) => q.includes(trigger));
+  if (searchTriggers.some((trigger) => q.includes(trigger))) return true;
+
+  // 6. Bilgilendirici sorular (nedir/nasıl/kimdir...) — LLM'e güncel zemin hazırlar,
+  // harici API çökerse de yedek derleme yapılır
+  if (q.length > 12) {
+    const infoTriggers = [
+      "nedir",
+      "ne demek",
+      "nelerdir",
+      "nasıl",
+      "nasil",
+      "kimdir",
+      "neden",
+      "hangi",
+      "zararları",
+      "zararlari",
+      "faydaları",
+      "belirtileri",
+      "tedavisi",
+      "nasıl geçer",
+      "bilgi ver",
+    ];
+    if (infoTriggers.some((t) => q.includes(t))) return true;
+  }
+
+  return false;
 }

@@ -116,7 +116,41 @@ export function classifyUserPrompt(
     return "video";
   }
 
-  // Code
+  // Code — diller + web/uygulama/oyun yapım istekleri
+  // ("bana blog websitesi yap", "oyun yap", "uygulama kodla" -> direkt kod)
+  const codeNoun =
+    lower.includes("websitesi") ||
+    lower.includes("website") ||
+    norm.includes("web sitesi") ||
+    norm.includes("web sayfasi") ||
+    norm.includes("web sayfası") ||
+    norm.includes("internet sitesi") ||
+    norm.includes("internet sayfasi") ||
+    norm.includes("uygulama") ||
+    norm.includes("uygulamasi") ||
+    norm.includes("uygulaması") ||
+    norm.includes("oyun") ||
+    norm.includes("blog") ||
+    norm.includes("portfoy") ||
+    norm.includes("portföy") ||
+    norm.includes("panel") ||
+    norm.includes("arayuz") ||
+    norm.includes("arayüz") ||
+    norm.includes("form") ||
+    norm.includes("menu") ||
+    norm.includes("menü") ||
+    norm.includes("landing") ||
+    norm.includes("sayfa");
+  const codeVerb =
+    norm.includes("yap") ||
+    norm.includes("olustur") ||
+    norm.includes("hazirla") ||
+    norm.includes("kodla") ||
+    norm.includes("tasarla") ||
+    norm.includes("gelistir") ||
+    norm.includes("yaz") ||
+    lower.includes("build") ||
+    lower.includes("create");
   if (
     norm.includes("kod yaz") ||
     norm.includes("kodu yaz") ||
@@ -132,12 +166,289 @@ export function classifyUserPrompt(
     norm.includes("fonksiyon") ||
     norm.includes("algoritma") ||
     lower.includes("component") ||
-    norm.includes("kodunu ver")
+    norm.includes("kodunu ver") ||
+    (codeNoun && codeVerb)
   ) {
     return "code";
   }
 
   return "general";
+}
+
+// ==================== GÜVENLİK FİLTRELERİ ====================
+// illegal: patlayıcı/uyuşturucu üretimi, sahtecilik, hırsızlık, siber suç, şiddet
+// selfharm: intihar/kendine zarar (empatik yönlendirme)
+// protected: Atatürk ve Türk bayrağına hakaret (diğer konular serbest)
+function checkSafety(prompt: string): "ok" | "illegal" | "selfharm" | "protected" {
+  const n = normalizeTr(prompt);
+
+  if (
+    n.includes("intihar") ||
+    n.includes("kendimi oldur") ||
+    n.includes("kendime zarar") ||
+    n.includes("olum istiyorum") ||
+    n.includes("yasamak istemiyorum")
+  ) {
+    return "selfharm";
+  }
+
+  const protectedTarget =
+    n.includes("ataturk") ||
+    n.includes("mustafa kemal") ||
+    n.includes("turk bayrag") ||
+    n.includes("ay yildizli") ||
+    n.includes("istiklal mars");
+  const insultVerb =
+    n.includes("hakaret") ||
+    n.includes("kufur") ||
+    n.includes("kufret") ||
+    n.includes("sov") ||
+    n.includes("asagila") ||
+    n.includes("rezil et") ||
+    n.includes("kotu soz") ||
+    n.includes("sozluk hakaret") ||
+    n.includes("dalga gecmece") ||
+    (n.includes("karikatur") && (n.includes("kotu") || n.includes("asagila") || n.includes("hakaret")));
+  if (protectedTarget && insultVerb) return "protected";
+
+  const illegalHits = [
+    "bomba yap",
+    "bomba uret",
+    "molotof",
+    "el yapimi patlayici",
+    "uyusturucu yap",
+    "uyusturucu uret",
+    "uyusturucu sat",
+    "uyusturucu nasil yapilir",
+    "eroin yap",
+    "kokain yap",
+    "sahte para",
+    "kalpazan",
+    "para basma",
+    "kredi karti cal",
+    "kart kopyala",
+    "kart klonla",
+    "hesap cal",
+    "hesap hack",
+    "wifi kir",
+    "wifi sifre kir",
+    "sifre kirma",
+    "keylogger",
+    "ransomware",
+    "fidye yazilimiyla saldir",
+    "virus yaz",
+    "zararli yazilim yaz",
+    "trojan yap",
+    "silah yap",
+    "silah uret",
+    "suikast",
+    "adam oldur",
+    "cinayet isle",
+    "banka soy",
+    "hırsızlık yap",
+    "hırsizlik yap",
+    "dolandiricilik yap",
+    "sazan sarmali",
+    "phishing sayfasi",
+    "oltalama sitesi",
+  ];
+  if (illegalHits.some((k) => n.includes(k))) return "illegal";
+
+  return "ok";
+}
+
+function safetyRefusal(kind: "illegal" | "selfharm" | "protected"): { text: string; reasoning: string } {
+  if (kind === "selfharm") {
+    return {
+      text: `Bunu duymak beni üzdü, ama yalnız değilsin. Kendine zarar verme konusunda sana yöntem veya talimat veremem.\n\nLütfen hemen güvendiğin biriyle konuş veya profesyonel destek al:\n- **112 Acil Çağrı** (7/24)\n- **ALO 191** Uyuşturucu ile Mücadele Danışma Hattı\n\nDuygularını anlatmak istersen buradayım, seni dinlerim.`,
+      reasoning: "",
+    };
+  }
+  if (kind === "protected") {
+    return {
+      text: `Bu konuda yardımcı olamam. **Mustafa Kemal Atatürk'e ve Türk bayrağına hakaret içeren** metin, görsel veya benzeri içerik üretmiyorum. Bunun dışında tarih, biyografi veya başka herhangi bir konuda soru sorabilirsin — seve seve yardımcı olurum.`,
+      reasoning: "",
+    };
+  }
+  return {
+    text: `Bu konuda yardımcı olamam. Patlayıcı/uyuşturucu/silah üretimi, sahtecilik, hırsızlık, siber saldırı ve şiddete yönelik talimatlar vermiyorum. Bunun yerine güvenli ve yasal bir alternatif önerebilirim — ne yapmak istediğini anlat, yasal yoldan çözelim.`,
+    reasoning: "",
+  };
+}
+
+const BLOG_TEMPLATE_HTML = `<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Blogum - HilmanAI ile yapıldı</title>
+<style>
+  :root { --bg: #0b0d12; --card: #141824; --line: #232a3d; --txt: #e8ecf4; --dim: #9aa4b8; --acc: #10b981; }
+  * { box-sizing: border-box; } body { margin: 0; background: var(--bg); color: var(--txt); font-family: system-ui, sans-serif; }
+  header { padding: 28px 20px; text-align: center; border-bottom: 1px solid var(--line); background: linear-gradient(135deg, #064e3b33, #0ea5e933); }
+  header h1 { margin: 0; } header p { color: var(--dim); margin: 6px 0 0; }
+  nav { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 14px; }
+  nav button, nav input { background: var(--card); color: var(--txt); border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; }
+  nav button.on { background: var(--acc); color: #04110b; font-weight: 700; border-color: var(--acc); }
+  main { max-width: 760px; margin: 0 auto; padding: 18px; display: grid; gap: 14px; }
+  .post { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; cursor: pointer; }
+  .post:hover { border-color: var(--acc); } .post h2 { margin: 0 0 6px; font-size: 19px; }
+  .meta { color: var(--dim); font-size: 12px; display: flex; gap: 10px; }
+  .tag { background: #10b98122; color: var(--acc); padding: 2px 8px; border-radius: 20px; font-size: 11px; }
+  .detail img { width: 100%; border-radius: 12px; margin: 10px 0; }
+  .comments { margin-top: 14px; display: grid; gap: 8px; }
+  .cmt { background: #0b0d12; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font-size: 14px; }
+  .row { display: flex; gap: 8px; } input, textarea { flex: 1; background: #0b0d12; color: var(--txt); border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; }
+  .btn { background: var(--acc); color: #04110b; border: 0; border-radius: 10px; padding: 9px 14px; font-weight: 700; cursor: pointer; }
+  .ghost { background: transparent; color: var(--dim); border: 1px solid var(--line); border-radius: 10px; padding: 9px 14px; cursor: pointer; }
+  footer { text-align: center; color: var(--dim); font-size: 12px; padding: 22px; }
+</style>
+</head>
+<body>
+<header><h1>📝 Blogum</h1><p>Tek dosyalık Türkçe blog — HilmanAI başlangıç şablonu</p></header>
+<nav>
+  <button data-cat="all" class="on">Tümü</button>
+  <button data-cat="teknoloji">Teknoloji</button>
+  <button data-cat="seyahat">Seyahat</button>
+  <button data-cat="yemek">Yemek</button>
+  <input id="q" placeholder="Ara..." oninput="render()" />
+  <button onclick="composer()" style="border-color:var(--acc);color:var(--acc)">+ Yeni Yazı</button>
+</nav>
+<main id="list"></main>
+<footer>Sosyal: <a href="#" style="color:var(--acc)">X</a> • <a href="#" style="color:var(--acc)">Instagram</a> • <a href="#" style="color:var(--acc)">YouTube</a></footer>
+<script>
+const posts = [
+  { id: 1, title: "HilmanAI ile Blog Açmak", cat: "teknoloji", date: "2026-09-08", img: "https://picsum.photos/seed/blog1/760/320", text: "Bu şablon tek HTML dosyasıdır. Yazılar, yorumlar ve taslaklar tarayıcında (localStorage) saklanır.", likes: 12 },
+  { id: 2, title: "Kapadokya Gezi Notları", cat: "seyahat", date: "2026-09-07", img: "https://picsum.photos/seed/kapadokya/760/320", text: "Gün doğumunda balon turu ve Göreme vadisinde yürüyüş rotası.", likes: 8 },
+  { id: 3, title: "Evde Lahmacun Tarifi", cat: "yemek", date: "2026-09-06", img: "https://picsum.photos/seed/lahmacun/760/320", text: "Çıtır hamur, bol malzemeli iç harcı ve taş fırın etkisi için ipuçları.", likes: 21 }
+];
+let drafts = JSON.parse(localStorage.getItem("blog_drafts") || "[]");
+let cmts = JSON.parse(localStorage.getItem("blog_cmts") || "{}");
+let activeCat = "all";
+document.querySelectorAll("nav button[data-cat]").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button[data-cat]").forEach(x => x.classList.remove("on"));
+  b.classList.add("on"); activeCat = b.dataset.cat; render();
+});
+function all() { return [...drafts.filter(d => d.published), ...posts]; }
+function render() {
+  const q = (document.getElementById("q").value || "").toLowerCase();
+  const box = document.getElementById("list"); box.innerHTML = "";
+  all().filter(p => (activeCat === "all" || p.cat === activeCat) && (p.title + p.text).toLowerCase().includes(q))
+    .forEach(p => {
+      const el = document.createElement("div"); el.className = "post";
+      el.innerHTML = \`<h2>\${p.title}</h2><div class="meta"><span>\${p.date}</span><span class="tag">\${p.cat}</span><span>❤ \${p.likes || 0}</span><span>💬 \${(cmts[p.id] || []).length}</span></div><p>\${p.text.slice(0, 140)}...</p>\`;
+      el.onclick = () => openPost(p.id); box.appendChild(el);
+    });
+}
+function openPost(id) {
+  const p = all().find(x => x.id === id); if (!p) return;
+  const box = document.getElementById("list");
+  const list = (cmts[p.id] || []).map(c => \`<div class="cmt"><b>\${c.n}:</b> \${c.t}</div>\`).join("");
+  box.innerHTML = \`<div class="post detail"><button class="ghost" onclick="render()">← Geri</button>
+    <h2>\${p.title}</h2><div class="meta"><span>\${p.date}</span><span class="tag">\${p.cat}</span></div>
+    <img src="\${p.img}" alt="" /><p>\${p.text}</p>
+    <div class="row"><button class="btn" onclick="like(\${p.id})">❤ Beğen (\${p.likes || 0})</button>
+    <button class="ghost" onclick="share(\${p.id})">🔗 Paylaş</button></div>
+    <div class="comments"><b>Yorumlar</b>\${list || "<span style='color:var(--dim)'>İlk yorumu sen yaz!</span>"}
+    <div class="row"><input id="cn" placeholder="Adın" style="max-width:130px" /><input id="ct" placeholder="Yorumun..." />
+    <button class="btn" onclick="addCmt(\${p.id})">Gönder</button></div></div></div>\`;
+}
+function like(id) { const p = all().find(x => x.id === id); p.likes = (p.likes || 0) + 1; save(); openPost(id); }
+function share(id) { const u = location.href.split("#")[0] + "#yazi-" + id; navigator.clipboard.writeText(u); alert("Bağlantı kopyalandı: " + u); }
+function addCmt(id) {
+  const n = document.getElementById("cn").value.trim() || "Anonim";
+  const t = document.getElementById("ct").value.trim(); if (!t) return;
+  cmts[id] = [...(cmts[id] || []), { n, t }]; save(); openPost(id);
+}
+function composer() {
+  const box = document.getElementById("list");
+  box.innerHTML = \`<div class="post"><h2>Yeni Yazı</h2>
+    <div class="row" style="margin-bottom:8px"><input id="nt" placeholder="Başlık" /></div>
+    <div class="row" style="margin-bottom:8px"><input id="nc" placeholder="Kategori (teknoloji/seyahat/yemek)" /></div>
+    <textarea id="nx" rows="5" placeholder="İçerik... (yazdıkça taslak otomatik kaydedilir)" oninput="saveDraft()"></textarea>
+    <div class="row" style="margin-top:8px"><button class="btn" onclick="publish()">Yayınla</button>
+    <button class="ghost" onclick="render()">Vazgeç</button></div></div>\`;
+  const d = drafts.find(x => !x.published);
+  if (d) { document.getElementById("nt").value = d.title || ""; document.getElementById("nc").value = d.cat || ""; document.getElementById("nx").value = d.text || ""; }
+}
+function saveDraft() {
+  const t = document.getElementById("nt").value, c = document.getElementById("nc").value || "teknoloji", x = document.getElementById("nx").value;
+  let d = drafts.find(v => !v.published);
+  if (!d) { d = { id: Date.now(), published: false }; drafts.unshift(d); }
+  Object.assign(d, { title: t, cat: c, text: x }); save();
+}
+function publish() {
+  const d = drafts.find(v => !v.published); if (!d || !d.title || !d.text) return alert("Başlık ve içerik gerekli!");
+  Object.assign(d, { published: true, date: new Date().toISOString().slice(0, 10), img: "https://picsum.photos/seed/" + d.id + "/760/320", likes: 0 });
+  save(); render();
+}
+function save() {
+  localStorage.setItem("blog_drafts", JSON.stringify(drafts));
+  localStorage.setItem("blog_cmts", JSON.stringify(cmts));
+}
+if (location.hash.startsWith("#yazi-")) { const id = +location.hash.replace("#yazi-", ""); setTimeout(() => openPost(id), 50); }
+else render();
+</script>
+</body>
+</html>`;
+
+function buildBlogProjectResponse(): { text: string; reasoning: string } {
+  return {
+    text: `Harika seçim! Sana **yorum + kategori + arama + sosyal medya + taslak** destekli, tek dosyalık, karanlık temalı Türkçe blog şablonu hazırladım. Dosyayı \`blog.html\` olarak kaydedip tarayıcıda açman yeterli — sağdaki **Canlı Önizleme** panelinden hemen deneyebilirsin.\n\n**İçindekiler:**\n- 🔍 Canlı arama + kategori filtreleri\n- 💬 localStorage tabanlı yorumlar, ❤ beğeniler, 🔗 paylaşım linki\n- ✍️ Otomatik taslak kaydeden yazı editörü\n- 📱 Tam responsive + karanlık tasarım\n\nBunu beğenmezsen söyle — renkleri, kategorileri veya veritabanlı (gerçek backendli) sürümü de yaparım.\n\n\`\`\`html\n${BLOG_TEMPLATE_HTML}\n\`\`\``,
+    reasoning: "Kullanıcı blog projesi istedi (veya onayladı); tüm istenen özellikleri içeren tek dosyalık başlangıç şablonu üretildi.",
+  };
+}
+
+// Onay/takip cümleleri ("hepsini ekle", "kafana göre yap", "tamam başla")
+function isApprovalFollowUp(prompt: string): boolean {
+  const n = normalizeTr(prompt).trim().replace(/[?.,!;:]+$/g, "");
+  return (
+    n === "hepsini ekle" ||
+    n === "hepsini yap" ||
+    n === "tamamini yap" ||
+    n === "tamam yap" ||
+    n === "tamam basla" ||
+    n === "tamam, basla" ||
+    n === "kafana gore yap" ||
+    n === "kafana gore" ||
+    n === "sen bilirsin" ||
+    n === "sen sec" ||
+    n === "farketmez" ||
+    n === "fark etmez" ||
+    n === "olur yap" ||
+    n === "olur" ||
+    n === "yap gitsin" ||
+    n === "basla" ||
+    n === "devam et" ||
+    n === "hepsini" ||
+    n === "evet yap" ||
+    n === "aynen oyle yap" ||
+    n.startsWith("hepsini ekle") ||
+    n.startsWith("kafana gore yap")
+  );
+}
+
+// Son mesajlarda web-proje niyeti var mı? (blog/site/uygulama/oyun)
+function recentWebIntent(history: Array<{ role: string; content: string }>): string | null {
+  const last = history.slice(-6);
+  for (let i = last.length - 1; i >= 0; i--) {
+    const c = normalizeTr(last[i].content || "");
+    if (
+      c.includes("blog") ||
+      c.includes("website") ||
+      c.includes("websitesi") ||
+      c.includes("web sitesi") ||
+      c.includes("uygulama") ||
+      (c.includes("oyun") && (c.includes("yap") || c.includes("kod") || c.includes("yaz"))) ||
+      c.includes("portfoy") ||
+      c.includes("portföy") ||
+      (c.includes("site") && (c.includes("yap") || c.includes("kod") || c.includes("tasar")))
+    ) {
+      const m = last[i].content.match(/blog|websitesi|website|web sitesi|uygulama|oyun|portföy|portfoy|site/i);
+      return m ? m[0].toLowerCase() : "site";
+    }
+  }
+  return null;
 }
 
 function isCasualGreeting(prompt: string): boolean {
@@ -463,6 +774,55 @@ async function tryExternalLLM(
 // ==================== 4. DAHİLİ OTONOM ZEKÂ VE CANLI ARAŞTIRMA MOTORU ====================
 
 /**
+ * Bilgilendirici soru mu? (harici API çökerse yedek internet araması için)
+ */
+export function isInformationalQuestion(prompt: string): boolean {
+  const n = normalizeTr(prompt);
+  if (n.length < 12) return false;
+  return (
+    n.includes("nedir") ||
+    n.includes("ne demek") ||
+    n.includes("nelerdir") ||
+    n.includes("nasil") ||
+    n.includes("kimdir") ||
+    n.includes("neden") ||
+    n.includes("nasil yapilir") ||
+    n.includes("hangi") ||
+    n.includes("kac ") ||
+    n.includes("zararlari") ||
+    n.includes("faydalari") ||
+    n.includes("belirtileri") ||
+    n.includes("nasil gecer") ||
+    n.includes("anlat") ||
+    n.includes("acikla") ||
+    n.includes("bilgi ver") ||
+    n.includes("ogrenmek istiyorum")
+  );
+}
+
+/**
+ * Kaynak özetlerinden doğrudan yanıt derler (kalıp şablon yerine gerçek bilgi).
+ */
+function synthesizeGenericFromWeb(
+  userPrompt: string,
+  searchResults: SearchResultItem[]
+): string {
+  const clean = searchResults
+    .map((r) => ({ title: r.title.trim(), snippet: r.snippet.trim(), url: r.url }))
+    .filter((r) => r.snippet.length > 40 && r.title.length > 3)
+    .slice(0, 4);
+  if (clean.length === 0) return "";
+
+  const subject = userPrompt.replace(/[?.,!]+$/g, "").trim();
+  const bullets = clean
+    .map((r) => `- **${r.title}:** ${r.snippet.length > 280 ? r.snippet.slice(0, 280).trim() + "..." : r.snippet}`)
+    .join("\n");
+  const links = clean.map((r, i) => `[${i + 1}. ${r.title.slice(0, 45)}](${r.url})`).join(" • ");
+
+  return `**${subject}** hakkında güncel kaynaklardan derlediklerim:\n\n${bullets}\n\n🔗 Kaynaklar: ${links}\n\nDaha derine inmemi ister misin — örneğin alt başlıklara bölmemi veya özet çıkarmamı isteyebilirsin.`;
+}
+
+/**
  * Arama sonuçlarından anahtar bilgileri (tarih, sayı, isim, yer) çıkararak
  * tek bir doğrudan ve kesin cevap sentezler.
  */
@@ -587,6 +947,45 @@ function buildAutonomousResponse(
   const lower = userPrompt.toLowerCase().trim();
   const lastUserMessages = history.filter((m) => m.role === "user").map((m) => m.content);
   const previousMessage = lastUserMessages.length > 1 ? lastUserMessages[lastUserMessages.length - 2] : null;
+
+  // 0. GÜVENLİK (illegal / kendine zarar / Atatürk-bayrak hakareti)
+  const safety = checkSafety(userPrompt);
+  if (safety !== "ok") {
+    return safetyRefusal(safety);
+  }
+
+  // 0b. ONAY TAKİBİ: kullanıcı önceki web-proje teklifini onayladıysa direkt üret
+  // ("hepsini ekle", "kafana göre yap" + geçmişte blog/site konuşması)
+  if (isApprovalFollowUp(userPrompt)) {
+    const intent = recentWebIntent(history);
+    if (intent && intent.includes("blog")) {
+      return buildBlogProjectResponse();
+    }
+    if (intent) {
+      return {
+        text: `Anlaştık, \`${intent}\` projesini en iyi varsayımlarla hazırlıyorum!\n\nBaşlamadan önce tek bir seçim yap: **(1)** tek dosyalık hızlı prototip mi, **(2)** yoksa tam yapı (çok dosyalı, veritabanlı) mı olsun? Numarayı yazman yeterli — hemen koda geçiyorum.`,
+        reasoning: "",
+      };
+    }
+    // Geçmişte proje konuşulmadıysa neyi onayladığı belirsiz — şablon değil soru sor
+    return {
+      text: `Tabii, hemen hallederim! Ama neyi onayladığını tam çıkaramadım — bana biraz ipucu ver: **blog mu, site mi, uygulama mı, oyun mu** yapmamı istiyorsun? Tek kelime yazman yeterli, gerisini ben üstleniyorum.`,
+      reasoning: "",
+    };
+  }
+
+  // 0c. DOĞRUDAN BLOG İSTEĞİ (harici API yokken bile gerçek şablon üret)
+  if (
+    normalizeTr(userPrompt).includes("blog") &&
+    (normalizeTr(userPrompt).includes("yap") ||
+      normalizeTr(userPrompt).includes("hazirla") ||
+      normalizeTr(userPrompt).includes("olustur") ||
+      normalizeTr(userPrompt).includes("kodla") ||
+      normalizeTr(userPrompt).includes("sitesi") ||
+      normalizeTr(userPrompt).includes("websitesi"))
+  ) {
+    return buildBlogProjectResponse();
+  }
 
   // 1. Selamlaşma ve Tanışma
   if (isCasualGreeting(userPrompt)) {
@@ -751,6 +1150,15 @@ KPSS'de yüksek puan alıp atanabilmek için **Genel Yetenek (60 Soru)** ve **Ge
         ? `1. Kullanıcı sorgusu analiz edildi: "${userPrompt}".\n2. ${searchResults.length} internet kaynağı tarandı ve bilgi sentezlendi.\n3. Anahtar veriler çıkarılarak doğrudan cevap oluşturuldu.`
         : "";
       return { text: synthesized, reasoning };
+    }
+    // 6b. Özel sentez tutmadıysa ham internet bilgisinden derleme yap
+    // (asla kalıp şablon üretme — gerçek kaynak özetle)
+    const generic = synthesizeGenericFromWeb(userPrompt, searchResults);
+    if (generic) {
+      const reasoning = mode === "düşünen"
+        ? `1. "${userPrompt}" için ${searchResults.length} güncel kaynak tarandı.\n2. Kaynak özetleri birleştirilerek doğrudan yanıt derlendi.`
+        : "";
+      return { text: generic, reasoning };
     }
   }
 
@@ -1208,6 +1616,11 @@ export async function generateHilmanAutonomousResponse(
 
   // =================== 3. VİSİON ANALİZİ ===================
   if (category === "vision") {
+    const safety = checkSafety(userPrompt);
+    if (safety !== "ok") {
+      const r = safetyRefusal(safety);
+      return { content: r.text, reasoning: "", tokensUsed: 80, mediaType: "vision" };
+    }
     const fileName = attachedFile?.name || "Görsel Dosyası";
     const visionPrompt = `Kullanıcı bir görsel yükledi (Dosya: ${fileName}). Açıklama: "${userPrompt}". Bu görseli analiz et ve öneriler ver.`;
 
@@ -1244,6 +1657,20 @@ export async function generateHilmanAutonomousResponse(
 
   // =================== 5. GENEL SOHBET, KOD & ARAŞTIRMA ===================
   const isCode = category === "code";
+  // Güvenlik kapısı: yasak istekler harici API'ye bile gitmez (kota da harcanmaz)
+  const safetyMain = checkSafety(userPrompt);
+  if (safetyMain !== "ok") {
+    const r = safetyRefusal(safetyMain);
+    return {
+      content: r.text,
+      reasoning: "",
+      tokensUsed: 80,
+      mediaType: "text",
+      searchResults,
+      followUps: buildFollowUps(userPrompt, isCode ? "code" : "general"),
+      codeSnippet: null,
+    };
+  }
   let systemPrompt = DEFAULT_HILMAN_SYSTEM_PROMPT;
 
   if (isCode) {
@@ -1297,8 +1724,18 @@ export async function generateHilmanAutonomousResponse(
     finalContent = enforceHilmanIdentity(externalRes.text);
     finalReasoning = externalRes.reasoning;
   } else {
-    // Harici API kotası dolduysa, halüsinasyon gördüyse veya çevrimdışıysa -> Doğrulanmış Otonom Çekirdek
-    const localRes = buildAutonomousResponse(userPrompt, history, mode, searchResults);
+    // Harici API kotası dolduysa, halüsinasyon gördüyse veya çevrimdışıysa:
+    // bilgilendirici soruda internet yedeği yoksa şimdi ara, sonra çekirdeğe düş
+    let fallbackSearch = searchResults;
+    if ((!fallbackSearch || fallbackSearch.length === 0) && isInformationalQuestion(userPrompt)) {
+      try {
+        const fresh = await searchWeb(userPrompt, 4);
+        if (fresh.length > 0) fallbackSearch = fresh;
+      } catch {
+        // arama da yoksa yerel bilgi bankası devreye girer
+      }
+    }
+    const localRes = buildAutonomousResponse(userPrompt, history, mode, fallbackSearch);
     finalContent = localRes.text;
     finalReasoning = localRes.reasoning;
   }

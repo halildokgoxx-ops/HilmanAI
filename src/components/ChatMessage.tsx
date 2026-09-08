@@ -194,9 +194,9 @@ export function ChatMessage({
           {/* Header line */}
           <div className="flex items-center justify-between text-xs text-slate-400">
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-slate-200">
-                {isUser ? "Siz" : "HilmanAI"}
-              </span>
+              {!isUser && (
+                <span className="font-semibold text-slate-200">HilmanAI</span>
+              )}
               {!isUser && (
                 <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-white/[0.05] text-emerald-300 border border-white/5">
                   <Cpu className="w-2.5 h-2.5 text-emerald-400" />
@@ -210,175 +210,6 @@ export function ChatMessage({
                 </span>
               )}
             </div>
-
-            {/* Quick Actions for Assistant message */}
-            {!isUser && (
-              <div className="flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-opacity">
-                {/* Like Button */}
-                <button
-                  onClick={() => handleFeedback("like")}
-                  className={`p-1 rounded transition-colors ${feedback === "like"
-                      ? "text-emerald-400 bg-emerald-500/10"
-                      : "text-slate-400 hover:text-white hover:bg-white/10"
-                    }`}
-                  title="Beğen"
-                >
-                  <ThumbsUp className="w-3.5 h-3.5" />
-                </button>
-
-                {/* Dislike Button */}
-                <button
-                  onClick={() => handleFeedback("dislike")}
-                  className={`p-1 rounded transition-colors ${feedback === "dislike"
-                      ? "text-red-400 bg-red-500/10"
-                      : "text-slate-400 hover:text-white hover:bg-white/10"
-                    }`}
-                  title="Beğenme"
-                >
-                  <ThumbsDown className="w-3.5 h-3.5" />
-                </button>
-
-                {/* Kaynağı İncele (Sadece Zincir Emojisi 🔗) */}
-                {message.searchResults && message.searchResults.length > 0 && (
-                  <div className="relative" ref={sourcesRef}>
-                    <button
-                      onClick={() => setShowSources(!showSources)}
-                      className={`p-1 rounded transition-all flex items-center justify-center ${
-                        showSources
-                          ? "bg-cyan-500/20 text-white shadow-sm ring-1 ring-cyan-500/40"
-                          : "text-slate-400 hover:text-white hover:bg-white/10"
-                      }`}
-                      title="Kaynağı İncele"
-                    >
-                      <span className="text-xs select-none">🔗</span>
-                    </button>
-
-                    {showSources && (
-                      <div className="absolute right-0 mt-1 w-72 sm:w-80 rounded-xl bg-[#141620] border border-cyan-500/30 shadow-2xl p-2.5 z-40 space-y-2 text-xs divide-y divide-white/5">
-                        <div className="flex items-center justify-between pb-1.5 text-cyan-300 font-semibold text-[11px]">
-                          <span className="flex items-center gap-1.5">
-                            <span>🔗</span>
-                            <span>İncelenen Kaynaklar ({message.searchResults.length})</span>
-                          </span>
-                          <button
-                            onClick={() => setShowSources(false)}
-                            className="text-slate-400 hover:text-white p-0.5 rounded"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                        <div className="space-y-1.5 pt-1.5 max-h-56 overflow-y-auto pr-1">
-                          {message.searchResults.map((item: any, idx: number) => (
-                            <a
-                              key={idx}
-                              href={item.url || "#"}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="block p-2 rounded-lg bg-white/[0.03] hover:bg-cyan-950/40 border border-white/5 hover:border-cyan-500/30 transition-colors group/src"
-                            >
-                              <div className="flex items-center justify-between gap-1.5">
-                                <span className="font-medium text-slate-200 group-hover/src:text-cyan-300 text-[11px] truncate">
-                                  {item.title}
-                                </span>
-                                <ExternalLink className="w-3 h-3 text-slate-400 group-hover/src:text-cyan-300 shrink-0" />
-                              </div>
-                              {item.snippet && (
-                                <p className="text-slate-400 text-[10px] mt-0.5 line-clamp-2 leading-tight">
-                                  {item.snippet}
-                                </p>
-                              )}
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Copy Button */}
-                <button
-                  onClick={handleCopy}
-                  className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                  title="Metni Kopyala"
-                >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-
-                {/* Speech Button */}
-                <button
-                  onClick={handleSpeak}
-                  className={`p-1 rounded transition-colors ${isSpeaking
-                      ? "text-emerald-400 bg-emerald-500/10"
-                      : "text-slate-400 hover:text-white hover:bg-white/10"
-                    }`}
-                  title={isSpeaking ? "Durdur" : "Sesli Dinle"}
-                >
-                  {isSpeaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
-                </button>
-
-                {/* 3-dots Menu */}
-                <div className="relative" ref={menuRef}>
-                  <button
-                    onClick={() => setShowMenu(!showMenu)}
-                    className="p-1 rounded text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
-                    title="Diğer Seçenekler"
-                  >
-                    <MoreVertical className="w-3.5 h-3.5" />
-                  </button>
-
-                  {showMenu && (
-                    <div className="absolute right-0 mt-1 w-44 rounded-xl bg-[#141620] border border-white/10 shadow-2xl py-1.5 z-30 divide-y divide-white/5 text-xs">
-                      <div className="py-1">
-                        <button
-                          onClick={() => {
-                            handleCopy();
-                            setShowMenu(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
-                        >
-                          <Copy className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Metni Kopyala</span>
-                        </button>
-                        {onRegenerate && (
-                          <button
-                            onClick={() => {
-                              onRegenerate();
-                              setShowMenu(false);
-                            }}
-                            className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
-                          >
-                            <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Yeniden Oluştur</span>
-                          </button>
-                        )}
-                        {extractedCode && onOpenCodePreview && (
-                          <button
-                            onClick={() => {
-                              onOpenCodePreview(extractedCode.code, extractedCode.lang);
-                              setShowMenu(false);
-                            }}
-                            className="w-full px-3 py-1.5 text-left text-emerald-300 hover:bg-white/5 hover:text-emerald-200 flex items-center gap-2 font-medium"
-                          >
-                            <Play className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Canlı Önizleme Aç</span>
-                          </button>
-                        )}
-                        <button
-                          onClick={() => {
-                            handleSpeak();
-                            setShowMenu(false);
-                          }}
-                          className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
-                        >
-                          <Volume2 className="w-3.5 h-3.5 text-slate-400" />
-                          <span>Sesli Dinle</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
 
           {/* User Attached Image (Vision Input) */}
@@ -541,6 +372,174 @@ export function ChatMessage({
 
             {!message.isError && <MarkdownRenderer content={message.content} />}
           </div>
+
+          {/* Bottom Action Bar (Assistant: beğeni, kaynak, kopyala, ses, menü) */}
+          {!isUser && !message.isError && (
+            <div className="flex items-center gap-1 pt-1.5 mt-1 border-t border-white/[0.04]">
+              <button
+                onClick={() => handleFeedback("like")}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] transition-colors ${feedback === "like"
+                    ? "text-emerald-400 bg-emerald-500/10"
+                    : "text-slate-400 hover:text-white hover:bg-white/10"
+                  }`}
+                title="Beğen"
+              >
+                <ThumbsUp className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Beğen</span>
+              </button>
+
+              <button
+                onClick={() => handleFeedback("dislike")}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] transition-colors ${feedback === "dislike"
+                    ? "text-red-400 bg-red-500/10"
+                    : "text-slate-400 hover:text-white hover:bg-white/10"
+                  }`}
+                title="Beğenme"
+              >
+                <ThumbsDown className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Beğenme</span>
+              </button>
+
+              {message.searchResults && message.searchResults.length > 0 && (
+                <div className="relative" ref={sourcesRef}>
+                  <button
+                    onClick={() => setShowSources(!showSources)}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] transition-all ${
+                      showSources
+                        ? "bg-cyan-500/20 text-white shadow-sm ring-1 ring-cyan-500/40"
+                        : "text-slate-400 hover:text-white hover:bg-white/10"
+                    }`}
+                    title="Kaynağı İncele"
+                  >
+                    <span className="text-xs select-none">🔗</span>
+                    <span className="hidden sm:inline">Kaynaklar ({message.searchResults.length})</span>
+                  </button>
+
+                  {showSources && (
+                    <div className="absolute left-0 bottom-full mb-1 w-72 sm:w-80 rounded-xl bg-[#141620] border border-cyan-500/30 shadow-2xl p-2.5 z-40 space-y-2 text-xs divide-y divide-white/5">
+                      <div className="flex items-center justify-between pb-1.5 text-cyan-300 font-semibold text-[11px]">
+                        <span className="flex items-center gap-1.5">
+                          <span>🔗</span>
+                          <span>İncelenen Kaynaklar ({message.searchResults.length})</span>
+                        </span>
+                        <button
+                          onClick={() => setShowSources(false)}
+                          className="text-slate-400 hover:text-white p-0.5 rounded"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="space-y-1.5 pt-1.5 max-h-56 overflow-y-auto pr-1">
+                        {message.searchResults.map((item: any, idx: number) => (
+                          <a
+                            key={idx}
+                            href={item.url || "#"}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block p-2 rounded-lg bg-white/[0.03] hover:bg-cyan-950/40 border border-white/5 hover:border-cyan-500/30 transition-colors group/src"
+                          >
+                            <div className="flex items-center justify-between gap-1.5">
+                              <span className="font-medium text-slate-200 group-hover/src:text-cyan-300 text-[11px] truncate">
+                                {item.title}
+                              </span>
+                              <ExternalLink className="w-3 h-3 text-slate-400 group-hover/src:text-cyan-300 shrink-0" />
+                            </div>
+                            {item.snippet && (
+                              <p className="text-slate-400 text-[10px] mt-0.5 line-clamp-2 leading-tight">
+                                {item.snippet}
+                              </p>
+                            )}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                title="Metni Kopyala"
+              >
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">{copied ? "Kopyalandı" : "Kopyala"}</span>
+              </button>
+
+              <button
+                onClick={handleSpeak}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] transition-colors ${isSpeaking
+                    ? "text-emerald-400 bg-emerald-500/10"
+                    : "text-slate-400 hover:text-white hover:bg-white/10"
+                  }`}
+                title={isSpeaking ? "Durdur" : "Sesli Dinle"}
+              >
+                {isSpeaking ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+                <span className="hidden sm:inline">Dinle</span>
+              </button>
+
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                  title="Diğer Seçenekler"
+                >
+                  <MoreVertical className="w-3.5 h-3.5" />
+                </button>
+
+                {showMenu && (
+                  <div className="absolute left-0 bottom-full mb-1 w-44 rounded-xl bg-[#141620] border border-white/10 shadow-2xl py-1.5 z-30 divide-y divide-white/5 text-xs">
+                    <div className="py-1">
+                      <button
+                        onClick={() => {
+                          handleCopy();
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
+                      >
+                        <Copy className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Metni Kopyala</span>
+                      </button>
+                      {onRegenerate && (
+                        <button
+                          onClick={() => {
+                            onRegenerate();
+                            setShowMenu(false);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Yeniden Oluştur</span>
+                        </button>
+                      )}
+                      {extractedCode && onOpenCodePreview && (
+                        <button
+                          onClick={() => {
+                            onOpenCodePreview(extractedCode.code, extractedCode.lang);
+                            setShowMenu(false);
+                          }}
+                          className="w-full px-3 py-1.5 text-left text-emerald-300 hover:bg-white/5 hover:text-emerald-200 flex items-center gap-2 font-medium"
+                        >
+                          <Play className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Canlı Önizleme Aç</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          handleSpeak();
+                          setShowMenu(false);
+                        }}
+                        className="w-full px-3 py-1.5 text-left text-slate-300 hover:bg-white/5 hover:text-white flex items-center gap-2"
+                      >
+                        <Volume2 className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Sesli Dinle</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
