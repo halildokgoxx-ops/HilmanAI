@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
       isAdmin: session.isAdmin,
       plan: q.plan,
       quota: q.remaining,
+      quotaPolicy: q.policy,
       isVip: q.plan === "premium_plus",
     },
   });

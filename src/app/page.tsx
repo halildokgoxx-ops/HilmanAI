@@ -41,6 +41,7 @@ export interface AuthUser {
   isAdmin: boolean;
   plan?: "free" | "premium" | "premium_plus";
   quota?: number | null;
+  quotaPolicy?: { allowance: number; periodMs: number; costPerMessage: number; periodLabel: string } | null;
   isVip?: boolean;
 }
 

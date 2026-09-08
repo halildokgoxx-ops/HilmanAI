@@ -244,7 +244,7 @@ export function Header({
                 ? "bg-amber-500/10 text-amber-300 border-amber-500/30"
                 : "bg-white/[0.04] text-slate-300 border-white/10"
             }`}
-            title={user.quota != null ? `Kalan günlük hak: ${user.quota}` : "Günlük hak"}
+            title={user.quota != null ? `Kalan hak: ${user.quota}` : "Kalan hak"}
           >
             <span
               className={`text-[9px] font-bold px-1 rounded ${
@@ -258,10 +258,11 @@ export function Header({
         )}
         {user && user.plan === "premium_plus" && (
           <span
-            className="hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[11px] font-mono bg-gradient-to-r from-amber-500/20 to-purple-500/20 text-amber-200 border border-amber-500/40"
-            title="Sınırsız kullanım"
+            className="hidden sm:inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-mono bg-gradient-to-r from-amber-500/20 to-purple-500/20 text-amber-200 border border-amber-500/40"
+            title={user.quota != null ? `Kalan hak: ${user.quota}` : "Premium Plus"}
           >
-            <span className="text-[9px] font-bold">PLUS ∞</span>
+            <span className="text-[9px] font-bold">PLUS</span>
+            {user.quota != null && <span>{user.quota}</span>}
           </span>
         )}
 

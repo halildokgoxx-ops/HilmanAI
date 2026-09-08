@@ -17,10 +17,10 @@ interface SettingsModalProps {
   onSettingsSaved?: () => void;
 }
 
-const PLAN_INFO: Record<string, { label: string; quota: string; chip: string }> = {
-  free: { label: "Free", quota: "günde 100 mesaj", chip: "bg-white/10 text-slate-300" },
-  premium: { label: "Premium", quota: "günde 1000 mesaj", chip: "bg-amber-500/20 text-amber-300" },
-  premium_plus: { label: "Premium Plus", quota: "sınırsız", chip: "bg-gradient-to-r from-amber-500/25 to-purple-500/25 text-amber-200" },
+const PLAN_INFO: Record<string, { label: string; chip: string }> = {
+  free: { label: "Free", chip: "bg-white/10 text-slate-300" },
+  premium: { label: "Premium", chip: "bg-amber-500/20 text-amber-300" },
+  premium_plus: { label: "Premium Plus", chip: "bg-gradient-to-r from-amber-500/25 to-purple-500/25 text-amber-200" },
 };
 
 export function SettingsModal({ isOpen, onClose, onSettingsSaved }: SettingsModalProps) {
@@ -30,6 +30,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsSaved }: SettingsModa
   const [personalPrompt, setPersonalPrompt] = useState("");
   const [plan, setPlan] = useState<string>("free");
   const [quota, setQuota] = useState<number | null>(null);
+  const [quotaPolicy, setQuotaPolicy] = useState<{ periodLabel: string } | null>(null);
 
   // Fetch settings on open
   useEffect(() => {
@@ -42,6 +43,7 @@ export function SettingsModal({ isOpen, onClose, onSettingsSaved }: SettingsModa
         if (data.success && data.user) {
           setPlan(data.user.plan || "free");
           setQuota(data.user.quota ?? null);
+          setQuotaPolicy(data.user.quotaPolicy || null);
         }
       })
       .catch(() => {});
@@ -128,8 +130,8 @@ export function SettingsModal({ isOpen, onClose, onSettingsSaved }: SettingsModa
                   <div>
                     <div className="text-xs font-semibold text-slate-200">Üyelik Planınız</div>
                     <div className="text-[11px] text-slate-400">
-                      {planInfo.quota}
-                      {quota != null && plan !== "premium_plus" ? ` • kalan: ${quota}` : ""}
+                      {quotaPolicy ? quotaPolicy.periodLabel : ""}
+                      {quota != null ? ` • kalan: ${quota}` : ""}
                     </div>
                   </div>
                 </div>

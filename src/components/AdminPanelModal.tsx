@@ -997,9 +997,10 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
           {activeTab === "users" && (
             <div className="space-y-3">
               <p className="text-xs text-slate-400">
-                Google ile giriş yapan hesaplar. Free günde 100, Premium günde 1000 mesaj;
-                Premium Plus sınırsızdır. Kota her gece yarısı tazelenir. Özel sayı girerseniz
-                plan kotası yerine o kullanılır.
+                Google ile giriş yapan hesaplar. Free haftada 100 (mesaj başı 5),
+                Premium günde 2000 (mesaj başı 2), Premium Plus 5 saatte 10000
+                (mesaj başı 1) hak kullanır. Özel sayı girerseniz plan kotası
+                yerine o kullanılır.
               </p>
               {users.length === 0 && (
                 <div className="p-4 text-center text-xs text-slate-500 bg-white/[0.01] rounded-xl border border-dashed border-white/10">
@@ -1060,9 +1061,9 @@ export function AdminPanelModal({ isOpen, onClose, onModelUpdated }: AdminPanelM
                           }
                           className="bg-black/40 text-slate-200 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-500"
                         >
-                          <option value="free">Free (100/gün)</option>
-                          <option value="premium">Premium (1000/gün)</option>
-                          <option value="premium_plus">Premium Plus (∞)</option>
+                          <option value="free">Free (100/hafta)</option>
+                          <option value="premium">Premium (2000/gün)</option>
+                          <option value="premium_plus">Premium Plus (10000/5sa)</option>
                         </select>
                         <input
                           type="number"

@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Kota: günlük plan kotası (API anahtarı muaf, plus sınırsız).
+    // Kota: plan kotası (API anahtarı muaf).
     // Admin dahil herkesin sayacı düşer; SADECE admin engellenmez.
     if (session && !extractedKey) {
       const q = hilmanStorage.checkQuota(actorEmail);
@@ -79,7 +79,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
           {
             success: false,
-            error: `Günlük ${planName} kotanız doldu (${q.plan === "free" ? "100" : "1000"} mesaj/gün). Yarın yenilenecek veya plan yükseltmek için yöneticiyle iletişime geçin.`,
+            error: `${planName} kotanız doldu (${q.policy.periodLabel}). Yenilenme: ${new Date(
+              (hilmanStorage.getUser(actorEmail)?.quotaResetAt as string) || Date.now()
+            ).toLocaleString("tr-TR")}. Plan yükseltmek için yöneticiyle iletişime geçin.`,
           },
           { status: 429 }
         );

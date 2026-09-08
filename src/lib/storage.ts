@@ -29,11 +29,19 @@ export interface HilmanUser {
   lastLoginAt: string;
 }
 
-/** Katman günlük hakları (free az olmayacak şekilde) */
-export const PLAN_DAILY_QUOTA: Record<PlanId, number | null> = {
-  free: 100,
-  premium: 1000,
-  premium_plus: null, // sınırsız
+/** Katman politikaları: kota miktarı + yenilenme süresi + mesaj başı tüketim.
+ *  free hızlı biter (~yarım saatlik aktif sohbet), premium yavaş, plus çok zor biter. */
+export interface PlanPolicy {
+  allowance: number; // dönem başı hak
+  periodMs: number; // yenilenme süresi
+  costPerMessage: number; // mesaj başı düşüş
+  periodLabel: string; // "haftada 100 mesaj" gibi
+}
+
+export const PLAN_POLICY: Record<PlanId, PlanPolicy> = {
+  free: { allowance: 100, periodMs: 7 * 24 * 60 * 60 * 1000, costPerMessage: 5, periodLabel: "haftada 100 mesaj" },
+  premium: { allowance: 2000, periodMs: 24 * 60 * 60 * 1000, costPerMessage: 2, periodLabel: "günde 2000 mesaj" },
+  premium_plus: { allowance: 10000, periodMs: 5 * 60 * 60 * 1000, costPerMessage: 1, periodLabel: "5 saatte 10000 mesaj" },
 };
 
 export const PLAN_LABEL: Record<PlanId, string> = {
@@ -48,12 +56,9 @@ export function planOf(user: HilmanUser | null | undefined): PlanId {
   return user.plan || "free";
 }
 
-/** Ertesi gece yarısı (yerel saat) */
-function nextResetAt(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(0, 0, 0, 0);
-  return d.toISOString();
+/** Ertesi yenileme zamanı (plana göre) */
+function nextResetAt(plan: PlanId): string {
+  return new Date(Date.now() + PLAN_POLICY[plan].periodMs).toISOString();
 }
 
 export interface CustomModelData {
@@ -413,51 +418,55 @@ class HilmanStorage {
     if (!user) return false;
     user.plan = plan;
     user.isVip = plan === "premium_plus" ? true : false;
-    const allowance = PLAN_DAILY_QUOTA[plan];
-    user.quota = quotaOverride != null ? quotaOverride : allowance;
-    user.quotaResetAt = allowance == null ? null : nextResetAt();
+    const policy = PLAN_POLICY[plan];
+    user.quota = quotaOverride != null ? quotaOverride : policy.allowance;
+    user.quotaResetAt = new Date(Date.now() + policy.periodMs).toISOString();
     this.write(data);
     return true;
   }
 
   /**
-   * Kota kontrolü + günü dolduysa tazeleme.
-   * Döner: { allowed, remaining(null=sınırsız), plan }
+   * Kota kontrolü + dönemi dolduysa tazeleme.
+   * Döner: { allowed, remaining, plan, policy }
    */
-  public checkQuota(email: string): { allowed: boolean; remaining: number | null; plan: PlanId } {
+  public checkQuota(email: string): {
+    allowed: boolean;
+    remaining: number;
+    plan: PlanId;
+    policy: PlanPolicy;
+  } {
     const data = this.read();
     const clean = email.trim().toLowerCase();
     const user = (data.users || []).find((u) => u.email === clean);
     const plan = planOf(user || null);
-    const allowance = PLAN_DAILY_QUOTA[plan];
-    if (allowance == null) return { allowed: true, remaining: null, plan };
+    const policy = PLAN_POLICY[plan];
     if (!user) {
       // Kayıt yoksa (cookie var ama DB'de yok) — serbest bırak, login kaydı oluşturur
-      return { allowed: true, remaining: allowance, plan };
+      return { allowed: true, remaining: policy.allowance, plan, policy };
     }
     let dirty = false;
     if (!user.quotaResetAt || new Date(user.quotaResetAt).getTime() <= Date.now()) {
-      // Yeni gün: plan kotasıyla tazele
-      user.quota = allowance;
-      user.quotaResetAt = nextResetAt();
+      // Yeni dönem: plan kotasıyla tazele
+      user.quota = policy.allowance;
+      user.quotaResetAt = new Date(Date.now() + policy.periodMs).toISOString();
       dirty = true;
     }
     if (user.quota == null) {
-      user.quota = allowance;
+      user.quota = policy.allowance;
       dirty = true;
     }
     if (dirty) this.write(data);
-    return { allowed: (user.quota as number) > 0, remaining: user.quota as number, plan };
+    return { allowed: (user.quota as number) > 0, remaining: user.quota as number, plan, policy };
   }
 
-  /** Başarılı sohbet sonrası 1 hak düşürür (sınırlı planlarda) */
+  /** Başarılı sohbet sonrası planın mesaj ücretini düşürür */
   public consumeQuota(email: string): void {
     const data = this.read();
     const user = (data.users || []).find((u) => u.email === email.trim().toLowerCase());
     if (!user) return;
-    if (planOf(user) === "premium_plus") return;
+    const cost = PLAN_POLICY[planOf(user)].costPerMessage;
     if (user.quota == null) return;
-    user.quota = Math.max(0, user.quota - 1);
+    user.quota = Math.max(0, user.quota - cost);
     this.write(data);
   }
 
