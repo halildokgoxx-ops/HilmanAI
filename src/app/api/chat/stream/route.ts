@@ -179,9 +179,9 @@ export async function POST(req: NextRequest) {
               const lines = buf.split("\n");
               buf = lines.pop() || "";
               for (const line of lines) {
-                const t = line.trim();
-                if (!t.startsWith("data:")) continue;
-                const payload = t.slice(5).trim();
+                const ln = line.trim();
+                if (!ln.startsWith("data:")) continue;
+                const payload = ln.slice(5).trim();
                 if (payload === "[DONE]") break;
                 try {
                   const json = JSON.parse(payload);
@@ -207,7 +207,6 @@ export async function POST(req: NextRequest) {
             req.signal.removeEventListener("abort", onClientAbort);
           }
         }
-      }
 
       if (!streamed) {
         send({ fallback: true, error: "Canlı akış kurulamadı." });
