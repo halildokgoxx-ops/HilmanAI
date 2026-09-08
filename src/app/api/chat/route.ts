@@ -60,10 +60,20 @@ export async function POST(req: NextRequest) {
     const actorEmail = session?.email || keyOwner || "api-user";
     const isAdmin = !!session?.isAdmin;
 
-    // Kota: günlük plan kotası (admin/API anahtarı muaf, plus sınırsız)
-    if (session && !isAdmin && !extractedKey) {
+    // Oturum var ama kullanıcı kaydı yoksa oluştur (kota sayacı için şart)
+    if (session && !hilmanStorage.getUser(session.email)) {
+      hilmanStorage.upsertUser({
+        email: session.email,
+        name: session.name,
+        picture: session.picture || null,
+      });
+    }
+
+    // Kota: günlük plan kotası (API anahtarı muaf, plus sınırsız).
+    // Admin dahil herkesin sayacı düşer; SADECE admin engellenmez.
+    if (session && !extractedKey) {
       const q = hilmanStorage.checkQuota(actorEmail);
-      if (!q.allowed) {
+      if (!q.allowed && !isAdmin) {
         const planName =
           q.plan === "premium" ? "Premium" : q.plan === "premium_plus" ? "Premium Plus" : "Free";
         return NextResponse.json(
@@ -218,8 +228,8 @@ export async function POST(req: NextRequest) {
       provider: "hilman-engine",
     });
 
-    // 7. Kota düş (tanımlıysa)
-    if (session && !isAdmin && !extractedKey) {
+    // 7. Kota düş (plus hariç herkes — admin dahil, gösterge herkes için işler)
+    if (session && !extractedKey) {
       hilmanStorage.consumeQuota(actorEmail);
     }
 

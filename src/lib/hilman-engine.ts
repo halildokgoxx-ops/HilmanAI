@@ -62,6 +62,8 @@ export function classifyUserPrompt(
 ): RequestCategory {
   const lower = prompt.toLowerCase().trim();
   const norm = normalizeTr(prompt).trim();
+  // Sondaki noktalama çiz-fiilini gizlemesin ("kedi çiz.")
+  const normClean = norm.replace(/[?.,!;:]+$/g, "").trim();
 
   // Vision
   if (
@@ -73,7 +75,7 @@ export function classifyUserPrompt(
     return "vision";
   }
 
-  // Image
+  // Image — kalıp komutlar + jenerik çiz-fiilleri ("ev çiz", "kedi çizer misin")
   if (
     toolType === "image" ||
     norm.startsWith("resim ciz") ||
@@ -84,6 +86,12 @@ export function classifyUserPrompt(
     norm.includes("resim ciz") ||
     norm.includes("gorsel ciz") ||
     norm.includes("resim olustur") ||
+    normClean.startsWith("ciz ") ||
+    normClean.endsWith(" ciz") ||
+    normClean.includes(" ciz ") ||
+    norm.includes("cizdir") ||
+    norm.includes("cizer misin") ||
+    norm.includes("cizermisin") ||
     lower.includes("generate image") ||
     lower.includes("draw a") ||
     lower.includes("draw me")
@@ -91,15 +99,18 @@ export function classifyUserPrompt(
     return "image";
   }
 
-  // Video
+  // Video ("uzay videosu yap" gibi ek-fiil bitişikleri dahil)
   if (
     toolType === "video" ||
     norm.startsWith("video olustur") ||
     norm.startsWith("video yap") ||
     norm.startsWith("video uret") ||
+    norm.startsWith("video hazirla") ||
     norm.includes("video olustur") ||
     norm.includes("video yap") ||
     norm.includes("video uret") ||
+    norm.includes("video hazirla") ||
+    /\bvideo\w*\s+(olustur|uret|yap|hazirla|tasarla)\b/.test(norm) ||
     lower.includes("generate video")
   ) {
     return "video";
@@ -195,6 +206,11 @@ const PROMPT_DICTIONARY: Record<string, string> = {
   "adam": "cinematic portrait of a confident stylish man, chiaroscuro lighting, editorial photo",
   "bebek": "adorable smiling baby wrapped in soft knit blanket, gentle warm natural light",
   "yılan oyunu": "vibrant neon retro arcade snake game aesthetic, glowing grid, 8-bit futuristic art style",
+  "böcek": "extreme macro photography of a shiny beetle insect, ultra detailed exoskeleton, studio lighting",
+  "bocek": "extreme macro photography of a shiny beetle insect, ultra detailed exoskeleton, studio lighting",
+  "kelebek": "vibrant monarch butterfly with spread wings resting on blooming flower, soft bokeh background",
+  "ağaç": "majestic ancient oak tree in green meadow at golden hour, dramatic clouds",
+  "agac": "majestic ancient oak tree in green meadow at golden hour, dramatic clouds",
 };
 
 function translatePrompt(turkishPrompt: string): string {
@@ -207,10 +223,16 @@ function translatePrompt(turkishPrompt: string): string {
     return "futuristic neon cyberpunk city with flying vehicles, 8k resolution, cinematic lighting";
   }
 
-  // Sözlük aramasını normalize metinde yap (çiz/ciz fark etmez)
+  // Sözlük aramasını normalize + BOŞLUKSUZ metinde yap
+  // ("hamam böceği" -> "hamambocegi" anahtarıyla eşleşir).
+  // Kısa anahtarlar (ev, uzay) boşluksuz aranmaz — yoksa "kedisever"deki
+  // "ev" gibi yanlış eşleşmeler olur; onlar boşluklu aranır.
   const lower = normalizeTr(cleanOrig).toLowerCase();
+  const lowerNS = lower.replace(/\s+/g, "");
   for (const [key, val] of Object.entries(PROMPT_DICTIONARY)) {
-    if (lower.includes(normalizeTr(key))) {
+    const keyNorm = normalizeTr(key);
+    const keyNS = keyNorm.replace(/\s+/g, "");
+    if (keyNS.length >= 6 ? lowerNS.includes(keyNS) : lower.includes(keyNorm)) {
       return `${val}, highly detailed, photorealistic, 8k, cinematic, masterpiece`;
     }
   }
@@ -1116,9 +1138,24 @@ export async function generateHilmanAutonomousResponse(
 
   // =================== 1. GÖRSEL ÜRETİMİ (IMAGE) ===================
   if (category === "image") {
-    const cleanDesc = userPrompt
-      .replace(/^(resim çiz|resim ciz|görsel üret|gorsel uret|resim oluştur|resim olustur|görsel oluştur|gorsel olustur|resim yap)[:\s]*/gi, "")
-      .trim() || "Özel Sahne";
+    // Komut fiillerini baştan ve sondan temizle ki konsepte ve prompta karışmasın
+    // ("ev çiz" -> "ev", "bana kedi çiz" -> "kedi", "kedi resmi çiz" -> "kedi")
+    // \b koruması şart ("yapay" -> "yap" diye yenmesin!)
+    let cleanDesc = userPrompt.replace(
+      /^(resim çiz|resim ciz|görsel üret|gorsel uret|resim oluştur|resim olustur|görsel oluştur|gorsel olustur|resim yap|çiz|ciz|tasarla|oluştur|olustur|üret|uret|yap|hazırla|hazirla)\b[:\s]*/gi,
+      ""
+    );
+    // "lütfen bana bir kedi" gibi zincirleri tamamen soy
+    for (let k = 0; k < 4; k++) {
+      const n = cleanDesc.replace(/^(lütfen|lutfen|bana|banada|şunu|sunu|bunu|bir)\b[:\s]+/gi, "");
+      if (n === cleanDesc) break;
+      cleanDesc = n;
+    }
+    cleanDesc =
+      cleanDesc
+        .replace(/[\s.,!?:;]+(lütfen|lutfen|çiz|ciz|çizdir|cizdir|çizer misin|cizer misin|çizermisin|cizermisin|oluştur|olustur|üret|uret|yap|yapar mısın|yapar misin|tasarla|hazırla|hazirla)\b[\s.,!?:;]*$/gi, "")
+        .replace(/[\s.,!?:;]+(resmini|resmi|resim|fotoğrafını|fotografini|fotoğrafı|fotografi|foto|görselini|gorselini|görseli|gorseli)\b[\s.,!?:;]*$/gi, "")
+        .trim() || "Özel Sahne";
 
     const promptEn = translatePrompt(cleanDesc);
     const encodedPrompt = encodeURIComponent(promptEn);
@@ -1136,9 +1173,20 @@ export async function generateHilmanAutonomousResponse(
 
   // =================== 2. VİDEO ÜRETİMİ (VIDEO) ===================
   if (category === "video") {
-    const cleanDesc = userPrompt
-      .replace(/^(video oluştur|video olustur|video yap|video üret|video uret|generate video)[:\s]*/gi, "")
-      .trim() || "Sinematik Gece Sahnesi";
+    let cleanDesc = userPrompt.replace(
+      /^(video oluştur|video olustur|video yap|video üret|video uret|video hazırla|video hazirla|generate video)\b[:\s]*/gi,
+      ""
+    );
+    for (let k = 0; k < 4; k++) {
+      const n = cleanDesc.replace(/^(lütfen|lutfen|bana|banada|şunu|sunu|bunu|bir)\b[:\s]+/gi, "");
+      if (n === cleanDesc) break;
+      cleanDesc = n;
+    }
+    cleanDesc =
+      cleanDesc
+        .replace(/[\s.,!?:;]+(oluştur|olustur|üret|uret|yap|yapar mısın|yapar misin|hazırla|hazirla|tasarla|lütfen|lutfen)\b[\s.,!?:;]*$/gi, "")
+        .replace(/[\s.,!?:;]+(videosunu|videosu|video|filmini|filmi|klibini|klibi)\b[\s.,!?:;]*$/gi, "")
+        .trim() || "Sinematik Gece Sahnesi";
 
     const promptEn = translatePrompt(cleanDesc);
     const encodedPrompt = encodeURIComponent(promptEn);
