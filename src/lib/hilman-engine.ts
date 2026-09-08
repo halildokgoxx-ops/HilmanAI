@@ -25,6 +25,8 @@ export interface EngineResponse {
   mediaType?: "text" | "image" | "video" | "vision";
   searchResults?: SearchResultItem[] | null;
   followUps?: string[];
+  /** Hangi motor üretti: hf:<model> | hilmanai-custom | local | diffusion | motion | web | template */
+  source?: string | null;
   codeSnippet?: {
     code: string;
     language: string;
@@ -607,7 +609,7 @@ function hasSiteBuildWords(n: string): boolean {
   return noun && verb;
 }
 
-function buildProjectResponse(kind: "blog" | "youtube" | "game" | "site", hint: string): { text: string; reasoning: string } {
+function buildProjectResponse(kind: "blog" | "youtube" | "game" | "site", hint: string): { text: string; reasoning: string; source: string } {
   const titles = {
     blog: "Blog Sitesi",
     youtube: "YouTube Klonu (MyTube)",
@@ -629,6 +631,7 @@ function buildProjectResponse(kind: "blog" | "youtube" | "game" | "site", hint: 
   return {
     text: `Hazır! Sana **${titles[kind]}** şablonu kodladım — ${descs[kind]}. Dosya olarak kaydet ve tarayıcıda açman yeterli; sağdaki **Canlı Önizleme** panelinden hemen oynayabilirsin.\n\nİstersen renkleri, bölümleri veya özellikleri değiştireyim — söylemen yeterli!\n\n\`\`\`html\n${codes[kind]}\n\`\`\``,
     reasoning: `Kullanıcı "${hint}" projesi istedi; çevrimdışı hazır şablon üretildi.`,
+    source: "local",
   };
 }
 
@@ -1893,6 +1896,7 @@ export async function generateHilmanAutonomousResponse(
       imageUrl,
       mediaType: "image",
       followUps: buildFollowUps(userPrompt, "image"),
+      source: "diffusion",
     };
   }
 
@@ -1930,6 +1934,7 @@ export async function generateHilmanAutonomousResponse(
         videoUrl: `/api/media/${gen.fileId}`,
         mediaType: "video",
         followUps: buildFollowUps(userPrompt, "video"),
+        source: "motion",
       };
     }
 
@@ -1942,6 +1947,7 @@ export async function generateHilmanAutonomousResponse(
       videoUrl: null,
       mediaType: "text",
       followUps: ["Tekrar dene", "Farklı bir sahne öner", "Bu sahnenin resmini çiz"],
+      source: "web",
     };
   }
 
@@ -1950,7 +1956,7 @@ export async function generateHilmanAutonomousResponse(
     const safety = checkSafety(userPrompt);
     if (safety !== "ok") {
       const r = safetyRefusal(safety);
-      return { content: r.text, reasoning: "", tokensUsed: 80, mediaType: "vision" };
+      return { content: r.text, reasoning: "", tokensUsed: 80, mediaType: "vision", source: "local" };
     }
     const fileName = attachedFile?.name || "Görsel Dosyası";
     const visionPrompt = `Kullanıcı bir görsel yükledi (Dosya: ${fileName}). Açıklama: "${userPrompt}". Bu görseli analiz et ve öneriler ver.`;
@@ -1971,6 +1977,7 @@ export async function generateHilmanAutonomousResponse(
       tokensUsed: 350,
       mediaType: "vision",
       followUps: buildFollowUps(userPrompt, "vision"),
+      source: externalRes.success ? externalRes.source || "web" : "local",
     };
   }
 
@@ -1999,6 +2006,7 @@ export async function generateHilmanAutonomousResponse(
       mediaType: "text",
       searchResults,
       followUps: buildFollowUps(userPrompt, isCode ? "code" : "general"),
+      source: "local",
       codeSnippet: null,
     };
   }
@@ -2030,6 +2038,7 @@ export async function generateHilmanAutonomousResponse(
 
   let finalContent = "";
   let finalReasoning = "";
+  let usedSource: string | null = "local";
 
   const pLower = userPrompt.toLowerCase();
   const isCorrectionPrompt =
@@ -2054,6 +2063,7 @@ export async function generateHilmanAutonomousResponse(
   if (externalRes.success && !isHallucinated) {
     finalContent = enforceHilmanIdentity(externalRes.text);
     finalReasoning = externalRes.reasoning;
+    usedSource = externalRes.source || "web";
   } else {
     // Harici API kotası dolduysa, halüsinasyon gördüyse veya çevrimdışıysa:
     // bilgilendirici soruda internet yedeği yoksa şimdi ara, sonra çekirdeğe düş
@@ -2110,6 +2120,7 @@ export async function generateHilmanAutonomousResponse(
     mediaType: "text",
     searchResults,
     followUps: buildFollowUps(userPrompt, isCode ? "code" : "general"),
+    source: usedSource,
     codeSnippet,
   };
 }
@@ -2126,5 +2137,6 @@ export function generateHilmanAutonomousResponseSync(
     reasoning: "",
     tokensUsed: 0,
     mediaType: "text",
+    source: "local",
   };
 }

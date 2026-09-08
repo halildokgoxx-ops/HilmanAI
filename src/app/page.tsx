@@ -51,6 +51,7 @@ export default function HilmanChatPage() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageData[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
 
   // Auth (Google zorunlu — girişsiz AI açılmaz)
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -88,6 +89,19 @@ export default function HilmanChatPage() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
+
+  // Yüklenirken geçen süre sayacı
+  useEffect(() => {
+    if (!isLoading) {
+      setElapsedSec(0);
+      return;
+    }
+    const t0 = Date.now();
+    const timer = setInterval(() => {
+      setElapsedSec(Math.floor((Date.now() - t0) / 1000));
+    }, 500);
+    return () => clearInterval(timer);
+  }, [isLoading]);
 
   // Load initial settings, models and conversations
   useEffect(() => {
@@ -368,6 +382,16 @@ export default function HilmanChatPage() {
     }
   };
 
+  const handleDeleteAllConversations = async () => {
+    try {
+      await fetch("/api/conversations", { method: "DELETE" });
+      handleNewChat();
+      loadConversations();
+    } catch (e) {
+      console.error("Delete all conversations error:", e);
+    }
+  };
+
   const handleRenameConversation = async (id: string, newTitle: string) => {
     try {
       await fetch(`/api/conversations/${id}`, {
@@ -451,6 +475,7 @@ export default function HilmanChatPage() {
         onSelectConversation={selectConversation}
         onNewChat={handleNewChat}
         onDeleteConversation={handleDeleteConversation}
+        onDeleteAllConversations={handleDeleteAllConversations}
         onRenameConversation={handleRenameConversation}
         onTogglePinConversation={handleTogglePin}
         onOpenSettings={() => setSettingsOpen(true)}
@@ -628,6 +653,9 @@ export default function HilmanChatPage() {
                           : currentMode === "pro"
                           ? "Kıdemli mimar standartlarında kod hazırlıyor..."
                           : "Hızlı yanıt üretiliyor..."}
+                        {elapsedSec > 2 && (
+                          <span className="font-mono text-slate-500">({elapsedSec}sn)</span>
+                        )}
                       </span>
                     </div>
                     <div className="h-4 w-48 bg-white/5 rounded animate-pulse" />

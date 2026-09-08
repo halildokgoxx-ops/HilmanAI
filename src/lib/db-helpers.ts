@@ -42,6 +42,10 @@ export async function deleteConversation(id: string): Promise<boolean> {
   return hilmanStorage.deleteConversation(id);
 }
 
+export async function deleteAllConversations(ownerEmail: string): Promise<number> {
+  return hilmanStorage.deleteAllConversations(ownerEmail);
+}
+
 export async function addMessage(msg: {
   id: string;
   conversationId: string;
@@ -57,6 +61,7 @@ export async function addMessage(msg: {
   latencyMs?: number | null;
   searchResults?: Array<{ title: string; snippet: string; url: string }> | null;
   followUps?: string[] | null;
+  source?: string | null;
   isError?: boolean;
 }): Promise<MessageData> {
   return hilmanStorage.addMessage(msg);

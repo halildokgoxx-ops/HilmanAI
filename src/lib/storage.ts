@@ -121,6 +121,7 @@ export interface MessageData {
   latencyMs?: number | null;
   searchResults?: Array<{ title: string; snippet: string; url: string }> | null;
   followUps?: string[] | null; // tek tıkla takip soruları
+  source?: string | null; // hangi motor üretti (hf:.. / hilmanai-custom / local / diffusion / motion / web)
   isError: boolean;
   createdAt: string;
 }
@@ -708,6 +709,20 @@ class HilmanStorage {
     return true;
   }
 
+  /** Hesabın TÜM sohbetlerini sil (mesajlarıyla birlikte). Silinen adedi döndürür. */
+  public deleteAllConversations(ownerEmail: string): number {
+    const data = this.read();
+    const clean = ownerEmail.trim().toLowerCase();
+    const ids = new Set(
+      data.conversations.filter((c) => (c.ownerEmail || "").toLowerCase() === clean).map((c) => c.id)
+    );
+    if (ids.size === 0) return 0;
+    data.conversations = data.conversations.filter((c) => !ids.has(c.id));
+    data.messages = data.messages.filter((m) => !ids.has(m.conversationId));
+    this.write(data);
+    return ids.size;
+  }
+
   // MESSAGES
   public addMessage(msg: Partial<MessageData> & { id: string; conversationId: string; role: "user" | "assistant" | "system"; content: string }): MessageData {
     const data = this.read();
@@ -727,6 +742,7 @@ class HilmanStorage {
       latencyMs: msg.latencyMs || null,
       searchResults: msg.searchResults || null,
       followUps: msg.followUps || null,
+      source: (msg as any).source || null,
       isError: !!msg.isError,
       createdAt: new Date().toISOString(),
     };

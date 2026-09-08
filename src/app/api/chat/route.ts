@@ -220,6 +220,7 @@ export async function POST(req: NextRequest) {
       latencyMs,
       searchResults: autoResp.searchResults || null,
       followUps: autoResp.followUps || null,
+      source: autoResp.source || null,
       isError: false,
     });
 

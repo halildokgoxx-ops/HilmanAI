@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllConversations, createConversation, getOrCreateSettings } from "@/lib/db-helpers";
+import { getAllConversations, createConversation, getOrCreateSettings, deleteAllConversations } from "@/lib/db-helpers";
 import { DEFAULT_HILMAN_SYSTEM_PROMPT } from "@/lib/constants";
 import { getSessionUser, unauthorized } from "@/lib/auth";
 
@@ -50,6 +50,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, conversation: created });
   } catch (error: any) {
     console.error("Conversations POST error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const session = getSessionUser(req);
+  if (!session) return unauthorized();
+  try {
+    const count = await deleteAllConversations(session.email);
+    return NextResponse.json({ success: true, deleted: count });
+  } catch (error: any) {
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

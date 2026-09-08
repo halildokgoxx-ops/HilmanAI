@@ -204,6 +204,32 @@ export function ChatMessage({
                   {(message.latencyMs / 1000).toFixed(1)}sn
                 </span>
               )}
+              {!isUser && !!message.source && (
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                    message.source.startsWith("hf:")
+                      ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25"
+                      : message.source === "hilmanai-custom"
+                      ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/25"
+                      : message.source === "diffusion"
+                      ? "bg-purple-500/10 text-purple-300 border-purple-500/25"
+                      : message.source === "motion"
+                      ? "bg-amber-500/10 text-amber-300 border-amber-500/25"
+                      : "bg-white/[0.04] text-slate-400 border-white/10"
+                  }`}
+                  title={`Motor: ${message.source}`}
+                >
+                  {message.source.startsWith("hf:")
+                    ? "⚡ Canlı AI"
+                    : message.source === "hilmanai-custom"
+                    ? "🤖 HilmanAI-7B"
+                    : message.source === "diffusion"
+                    ? "🎨 Diffusion"
+                    : message.source === "motion"
+                    ? "🎬 Motion"
+                    : "📦 Yerel"}
+                </span>
+              )}
             </div>
           </div>
 

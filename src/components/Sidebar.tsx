@@ -27,6 +27,7 @@ interface SidebarProps {
   onSelectConversation: (id: string) => void;
   onNewChat: () => void;
   onDeleteConversation: (id: string) => void;
+  onDeleteAllConversations: () => void;
   onRenameConversation: (id: string, newTitle: string) => void;
   onTogglePinConversation: (id: string, currentPin: boolean) => void;
   onOpenSettings: () => void;
@@ -43,6 +44,7 @@ export function Sidebar({
   onSelectConversation,
   onNewChat,
   onDeleteConversation,
+  onDeleteAllConversations,
   onRenameConversation,
   onTogglePinConversation,
   onOpenSettings,
@@ -231,6 +233,20 @@ export function Sidebar({
           <div className="pt-1 flex items-center justify-between text-[11px] text-slate-500">
             <span>{conversations.length} kayıtlı sohbet</span>
             <div className="flex items-center gap-1">
+              {conversations.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (confirm("TÜM sohbet geçmişinizi silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
+                      onDeleteAllConversations();
+                    }
+                  }}
+                  className="text-slate-500 hover:text-red-400 transition-colors p-1 rounded hover:bg-red-500/10 text-[10px] flex items-center gap-1"
+                  title="Tüm Sohbetleri Sil"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Tümü</span>
+                </button>
+              )}
               <button
                 onClick={onOpenMedia}
                 className="text-slate-400 hover:text-purple-300 transition-colors p-1 rounded hover:bg-white/5 flex items-center gap-1"
