@@ -627,7 +627,7 @@ export default function HilmanChatPage() {
   }
 
   return (
-    <div className="flex h-screen bg-[#08090d] text-slate-100 overflow-hidden font-sans selection:bg-emerald-500/30 selection:text-emerald-200">
+    <div className="flex h-app bg-[#08090d] text-slate-100 overflow-hidden font-sans selection:bg-emerald-500/30 selection:text-emerald-200">
       {/* Left Sidebar */}
       <Sidebar
         isOpen={sidebarOpen}

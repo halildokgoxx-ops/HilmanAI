@@ -112,7 +112,7 @@ export function LoginScreen({ onLoggedIn }: LoginScreenProps) {
   }, [clientId]);
 
   return (
-    <div className="min-h-screen w-full relative overflow-hidden bg-[#05060a] text-slate-100 flex items-center justify-center p-4">
+    <div className="min-h-screen min-h-dvh w-full relative overflow-hidden bg-[#05060a] text-slate-100 flex items-center justify-center p-4 pb-safe">
       {/* Arka plan: aurora gradyanlar + grid */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -top-40 -left-40 w-[560px] h-[560px] rounded-full bg-cyan-500/20 blur-[140px] animate-pulse" />

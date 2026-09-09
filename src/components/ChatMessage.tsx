@@ -164,7 +164,7 @@ export function ChatMessage({
   return (
     <>
       <div
-        className={`group relative flex gap-3.5 md:gap-4 py-4 px-3 md:px-6 transition-colors ${isUser
+        className={`group relative flex gap-2.5 sm:gap-3.5 md:gap-4 py-4 px-3 md:px-6 transition-colors ${isUser
             ? "justify-end bg-transparent hover:bg-white/[0.01]"
             : "bg-[#111319]/70 hover:bg-[#111319] border-y border-white/[0.03]"
           }`}
@@ -173,7 +173,7 @@ export function ChatMessage({
         {!isUser && (
           <div className="shrink-0 pt-0.5">
             <div className="relative">
-              <div className="w-8 h-8 rounded-xl overflow-hidden border border-cyan-500/30 shadow-md shadow-indigo-500/20 bg-black">
+              <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-xl overflow-hidden border border-cyan-500/30 shadow-md shadow-indigo-500/20 bg-black">
                 <img
                   src="/hilman-logo.png"
                   alt="HilmanAI"
@@ -185,7 +185,7 @@ export function ChatMessage({
         )}
 
         {/* Message Content */}
-        <div className={`min-w-0 space-y-2 ${isUser ? "max-w-[88%] sm:max-w-[78%] rounded-2xl rounded-br-md bg-emerald-500/[0.08] border border-emerald-500/15 px-4 py-3" : "flex-1"}`}>
+        <div className={`min-w-0 space-y-2 ${isUser ? "max-w-[92%] min-[380px]:max-w-[88%] sm:max-w-[78%] rounded-2xl rounded-br-md bg-emerald-500/[0.08] border border-emerald-500/15 px-3.5 sm:px-4 py-2.5 sm:py-3" : "flex-1"}`}>
           {/* Header line */}
           <div className={`flex items-center text-xs text-slate-400 ${isUser ? "justify-end" : "justify-between"}`}>
             <div className="flex items-center gap-2">
@@ -396,7 +396,7 @@ export function ChatMessage({
 
           {/* Bottom Action Bar (Assistant: beğeni, kaynak, kopyala, ses, menü) */}
           {!isUser && !message.isError && (
-            <div className="flex items-center gap-1 pt-1.5 mt-1 border-t border-white/[0.04]">
+            <div className="flex items-center gap-0.5 sm:gap-1 pt-1.5 mt-1 border-t border-white/[0.04] flex-wrap">
               <button
                 onClick={() => handleFeedback("like")}
                 className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] transition-colors ${feedback === "like"

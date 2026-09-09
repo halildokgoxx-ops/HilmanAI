@@ -81,7 +81,7 @@ export function Header({
   }, []);
 
   return (
-    <header className="h-14 border-b border-white/[0.07] bg-[#0c0e14]/90 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between px-3 md:px-5">
+    <header className="pt-safe h-14 border-b border-white/[0.07] bg-[#0c0e14]/90 backdrop-blur-md sticky top-0 z-20 flex items-center justify-between px-2 sm:px-3 md:px-5 gap-1">
       {/* Left: Hamburger & Brand */}
       <div className="flex items-center gap-2.5">
         <button

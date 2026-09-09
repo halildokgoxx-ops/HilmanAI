@@ -199,7 +199,7 @@ export function ChatInput({
   const activeModeConfig = CHAT_MODES[currentMode] || CHAT_MODES["düşünen"];
 
   return (
-    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 pb-4">
+    <div className="w-full max-w-4xl mx-auto px-3 sm:px-6 pb-safe pt-1">
       {/* Attached file preview */}
       {attachedFile && (
         <div className="mb-2.5 flex items-center gap-3 p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/20 text-xs text-emerald-300 w-fit shadow-md">
@@ -231,14 +231,14 @@ export function ChatInput({
         </div>
       )}
 
-      {/* Multimodal Tools & Modes Bar */}
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      {/* Multimodal Tools & Modes Bar — mobilde yatay kayar */}
+      <div className="mb-2 flex flex-nowrap items-center justify-between gap-2 overflow-x-auto no-scrollbar py-0.5">
         {/* Multimodal Tools (Chat, Image, Video) */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-[#12141c] border border-white/5 shadow-inner">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-[#12141c] border border-white/5 shadow-inner shrink-0">
           <button
             type="button"
             onClick={() => setActiveTool("chat")}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`tap flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               activeTool === "chat"
                 ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
                 : "text-slate-400 hover:text-white"
@@ -246,13 +246,13 @@ export function ChatInput({
             title="Sohbet & Kodlama"
           >
             <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Sohbet & Kod</span>
+            <span className="hidden min-[380px]:inline">Sohbet & Kod</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTool("image")}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`tap flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               activeTool === "image"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
                 : "text-slate-400 hover:text-white"
@@ -260,13 +260,13 @@ export function ChatInput({
             title="Resim Çiz (Hilman Diffusion)"
           >
             <ImageIcon className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Resim Çiz</span>
+            <span className="hidden min-[380px]:inline">Resim Çiz</span>
           </button>
 
           <button
             type="button"
             onClick={() => setActiveTool("video")}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`tap flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               activeTool === "video"
                 ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
                 : "text-slate-400 hover:text-white"
@@ -274,16 +274,16 @@ export function ChatInput({
             title="Video Oluştur (Hilman Motion Studio)"
           >
             <VideoIcon className="w-3.5 h-3.5 text-amber-400" />
-            <span>Video Yap</span>
+            <span className="hidden min-[380px]:inline">Video Yap</span>
           </button>
         </div>
 
         {/* Reasoning Mode Pill Bar */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-[#12141c] border border-white/5 shadow-inner">
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-[#12141c] border border-white/5 shadow-inner shrink-0">
           <button
             type="button"
             onClick={() => onSelectMode("düşünen")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`tap flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               currentMode === "düşünen"
                 ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40"
                 : "text-slate-400 hover:text-white"
@@ -291,13 +291,13 @@ export function ChatInput({
             title="Derin muhakeme (<think>) modu"
           >
             <Brain className="w-3.5 h-3.5 text-indigo-400" />
-            <span>Düşünen</span>
+            <span className="hidden min-[420px]:inline">Düşünen</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectMode("pro")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`tap flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               currentMode === "pro"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
                 : "text-slate-400 hover:text-white"
@@ -305,13 +305,13 @@ export function ChatInput({
             title="Kıdemli mimar standartları"
           >
             <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Pro</span>
+            <span className="hidden min-[420px]:inline">Pro</span>
           </button>
 
           <button
             type="button"
             onClick={() => onSelectMode("hızlı")}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`tap flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
               currentMode === "hızlı"
                 ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
                 : "text-slate-400 hover:text-white"
@@ -319,7 +319,7 @@ export function ChatInput({
             title="Hızlı doğrudan yanıt"
           >
             <Zap className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Hızlı</span>
+            <span className="hidden min-[420px]:inline">Hızlı</span>
           </button>
         </div>
       </div>
@@ -351,7 +351,7 @@ export function ChatInput({
           }
           rows={1}
           disabled={isLoading}
-          className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 px-4 pt-3.5 pb-12 focus:outline-none resize-none text-[15px] max-h-56 min-h-[54px] leading-relaxed"
+          className="w-full bg-transparent text-slate-100 placeholder:text-slate-500 px-4 pt-3.5 pb-12 focus:outline-none resize-none text-base sm:text-[15px] max-h-56 min-h-[54px] leading-relaxed"
         />
 
         {/* Action Bar Bottom */}

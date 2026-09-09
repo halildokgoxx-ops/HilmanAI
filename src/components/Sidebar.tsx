@@ -114,7 +114,7 @@ export function Sidebar({
       <aside
         className={`fixed md:static inset-y-0 left-0 z-40 bg-[#0a0c12] border-r border-white/[0.07] flex flex-col transition-all duration-200 ease-in-out overflow-hidden ${
           isOpen
-            ? "translate-x-0 w-72 md:w-64 lg:w-72 opacity-100 pointer-events-auto"
+            ? "translate-x-0 w-[84vw] max-w-[320px] md:w-64 lg:w-72 opacity-100 pointer-events-auto shadow-2xl"
             : "-translate-x-full md:translate-x-0 md:w-0 md:border-r-0 md:opacity-0 pointer-events-none"
         }`}
       >
