@@ -217,9 +217,10 @@ export async function POST(req: NextRequest) {
       provider: "hilman-engine",
     });
 
-    // 7. Kota düş (plus hariç herkes — admin dahil, gösterge herkes için işler)
+    // 7. Kota düş (plus hariç herkes — admin dahil, gösterge herkes için işler).
+    // Önbellekten gelen yanıt neredeyse bedavadır (1 hak).
     if (session && !extractedKey) {
-      hilmanStorage.consumeQuota(actorEmail);
+      hilmanStorage.consumeQuota(actorEmail, autoResp.cached ? 1 : undefined);
     }
 
     return NextResponse.json({

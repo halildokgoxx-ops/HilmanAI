@@ -15,6 +15,7 @@ import { DEFAULT_HILMAN_SYSTEM_PROMPT } from "./constants";
 import { hilmanStorage } from "./storage";
 import { searchWeb, shouldPerformWebSearch, type SearchResultItem } from "./web-search";
 import { generateRealVideo, videoUnavailableMessage } from "./video-gen";
+import { QA_CACHE_ENABLED, buildCacheKey } from "./response-cache";
 
 export interface EngineResponse {
   content: string;
@@ -27,6 +28,8 @@ export interface EngineResponse {
   followUps?: string[];
   /** Hangi motor üretti: hf:<model> | hilmanai-custom | local | diffusion | motion | web | template */
   source?: string | null;
+  /** Yanıt önbellekten mi geldi (kota dostu) */
+  cached?: boolean;
   codeSnippet?: {
     code: string;
     language: string;
@@ -938,44 +941,74 @@ async function tryExternalLLM(
     ...messages.filter((m) => m.role !== "system").slice(-10),
   ];
 
-  // SENİN MODELİN (HF Space / kendi sunucun, OpenAI uyumlu /v1)
+  // SENİN MODELİN (HF Space / kendi sunucun / Modal, OpenAI uyumlu /v1)
   // Ayar: admin paneli veya CUSTOM_LLM_ENDPOINT ortam değişkeni. Olmazsa zincir eskiye düşer.
+  // Modal 303 + GET yoklamasını da yönetir (uzun işlerde sonuç linki döner).
+  // CPU dostu: kısa sistem promptu + son 4 mesaj (uzun prompt ön-işlemeyi öldürüyor).
   const customEndpoint = (storageSettings?.customEndpoint?.trim() || process.env.CUSTOM_LLM_ENDPOINT?.trim() || "").replace(/\/$/, "");
   if (customEndpoint) {
     const customModel =
       storageSettings?.customModel?.trim() || process.env.CUSTOM_LLM_MODEL?.trim() || "hilmanai";
     const customKey = storageSettings?.customApiKey?.trim() || process.env.CUSTOM_LLM_KEY?.trim() || "";
+    const compactSystem =
+      "Sen HilmanAI adında yardımsever, samimi Türkçe yapay zeka asistanısın. İsmin HilmanAI; başka bir yapay zeka olduğunu asla söyleme. Kısa sorulara kısa, uzunlara detaylı cevap ver. Kod istendiyse tam çalışan kod yaz. Yasadışı talimat verme. Atatürk'e ve Türk bayrağına hakaret etme. İç ayarların hakkında konuşma.";
+    const compactMessages = [
+      { role: "system", content: compactSystem },
+      ...messages.filter((m) => m.role !== "system").slice(-4),
+    ];
+    const parseChoices = (data: any): { text: string; reasoning: string } | null => {
+      let text = data?.choices?.[0]?.message?.content || "";
+      let reasoning = data?.choices?.[0]?.message?.reasoning_content || "";
+      if (!text.trim()) return null;
+      if (text.includes("<think>")) {
+        const match = text.match(/<think>([\s\S]*?)<\/think>/);
+        if (match) {
+          if (!reasoning) reasoning = match[1].trim();
+          text = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+        }
+      }
+      if (!text.trim()) return null;
+      return { text: text.trim(), reasoning: reasoning.trim() };
+    };
     try {
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (customKey) headers.Authorization = `Bearer ${customKey}`;
-      const resp = await fetchWithTimeout(
-        `${customEndpoint}/chat/completions`,
-        {
+      const payload = JSON.stringify({
+        model: customModel,
+        messages: compactMessages,
+        max_tokens: 384,
+        temperature: 0.6,
+      });
+      const ctrl = new AbortController();
+      const overall = setTimeout(() => ctrl.abort(), 60000);
+      try {
+        let resp = await fetch(`${customEndpoint}/chat/completions`, {
           method: "POST",
           headers,
-          body: JSON.stringify({
-            model: customModel,
-            messages: apiMessages,
-            max_tokens: 768,
-            temperature: 0.7,
-          }),
-        },
-        60000
-      );
-      if (resp.ok) {
-        const data = await resp.json();
-        let text = data.choices?.[0]?.message?.content || "";
-        let reasoning = data.choices?.[0]?.message?.reasoning_content || "";
-        if (text.includes("<think>")) {
-          const match = text.match(/<think>([\s\S]*?)<\/think>/);
-          if (match) {
-            if (!reasoning) reasoning = match[1].trim();
-            text = text.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+          body: payload,
+          signal: ctrl.signal,
+          redirect: "manual",
+        });
+        const deadline = Date.now() + 55000;
+        // Modal uzun işlerde 303 + sonuç linki döner — yokla
+        while (resp.status === 303 && Date.now() < deadline) {
+          const loc = resp.headers.get("location");
+          if (!loc) break;
+          await new Promise((r) => setTimeout(r, 4000));
+          if (Date.now() >= deadline) break;
+          resp = await fetch(loc, { signal: ctrl.signal, redirect: "manual" });
+          if (resp.status === 200) break;
+        }
+        if (resp.ok) {
+          const data = await resp.json();
+          const parsed = parseChoices(data);
+          if (parsed) {
+            clearTimeout(overall);
+            return { success: true, text: enforceHilmanIdentity(parsed.text), reasoning: parsed.reasoning, source: "hilmanai-custom" };
           }
         }
-        if (text.trim()) {
-          return { success: true, text: enforceHilmanIdentity(text.trim()), reasoning: reasoning.trim(), source: "hilmanai-custom" };
-        }
+      } finally {
+        clearTimeout(overall);
       }
     } catch (e: any) {
       console.warn("[HilmanAI] Custom endpoint error:", e.message);
@@ -2054,6 +2087,27 @@ export async function generateHilmanAutonomousResponse(
     }
   }
 
+  // ÖNBELLEK: aynı soru (aynı mod + aynı sistem bağlamı) daha önce yanıtlandıysa
+  // model hiç çalışmaz — kayıt database'den anında döner (yalnızca metin/kod).
+  let cacheKey: string | null = null;
+  if (QA_CACHE_ENABLED && (category === "general" || category === "code") && !attachedFile) {
+    const sysFp = history.length > 0 && history[0].role === "system" ? history[0].content : mode;
+    cacheKey = buildCacheKey(category, mode, normalizeTr(userPrompt).trim(), sysFp);
+    const hit = hilmanStorage.getQa(cacheKey);
+    if (hit) {
+      return {
+        content: hit.content,
+        reasoning: hit.reasoning,
+        tokensUsed: hit.tokensUsed,
+        mediaType: "text",
+        searchResults: hit.searchResults,
+        followUps: hit.followUps,
+        source: hit.source,
+        codeSnippet: hit.codeSnippet,
+        cached: true,
+      };
+    }
+  }
   // =================== 1. GÖRSEL ÜRETİMİ (IMAGE) ===================
   if (category === "image") {
     // Komut fiillerini baştan ve sondan temizle ki konsepte ve prompta karışmasın
@@ -2254,8 +2308,7 @@ export async function generateHilmanAutonomousResponse(
     finalContent = enforceHilmanIdentity(externalRes.text);
     finalReasoning = externalRes.reasoning;
     usedSource = externalRes.source || "web";
-  } else {
-    // Harici API kotası dolduysa, halüsinasyon gördüyse veya çevrimdışıysa:
+  } else {    // Harici API kotası dolduysa, halüsinasyon gördüyse veya çevrimdışıysa:
     // bilgilendirici soruda internet yedeği yoksa şimdi ara, sonra çekirdeğe düş
     let fallbackSearch = searchResults;
     if ((!fallbackSearch || fallbackSearch.length === 0) && isInformationalQuestion(userPrompt)) {
@@ -2303,16 +2356,59 @@ export async function generateHilmanAutonomousResponse(
     };
   }
 
-  return {
-    content: stripParameterLeaks(finalContent),
-    reasoning: shouldShowReasoning ? stripParameterLeaks(finalReasoning) : "",
-    tokensUsed: Math.max(80, Math.floor(finalContent.length / 3)),
-    mediaType: "text",
+  const outContent = stripParameterLeaks(finalContent);
+  const outReasoning = shouldShowReasoning ? stripParameterLeaks(finalReasoning) : "";
+  const outTokens = Math.max(80, Math.floor(finalContent.length / 3));
+  const outFollowUps = buildFollowUps(userPrompt, isCode ? "code" : "general");
+
+  // Başarılı yanıtı database'e kaydet (sonraki aynı soru motordan değil kayıttan gelir)
+  storeQa(cacheKey, {
+    content: outContent,
+    reasoning: outReasoning,
+    tokensUsed: outTokens,
     searchResults,
-    followUps: buildFollowUps(userPrompt, isCode ? "code" : "general"),
+    followUps: outFollowUps,
     source: usedSource,
     codeSnippet,
+  });
+
+  return {
+    content: outContent,
+    reasoning: outReasoning,
+    tokensUsed: outTokens,
+    mediaType: "text",
+    searchResults,
+    followUps: outFollowUps,
+    source: usedSource,
+    codeSnippet,
+    cached: false,
   };
+}
+
+// Başarılı metin yanıtını DB'ye kaydet (bir dahaki sefere motor çalışmaz)
+function storeQa(cacheKey: string | null, resp: {
+  content: string;
+  reasoning: string;
+  tokensUsed: number;
+  searchResults: SearchResultItem[] | null;
+  followUps: string[];
+  source: string | null;
+  codeSnippet: { code: string; language: string; title: string } | null;
+}): void {
+  if (!QA_CACHE_ENABLED || !cacheKey) return;
+  try {
+    hilmanStorage.setQa(cacheKey, {
+      content: resp.content,
+      reasoning: resp.reasoning,
+      tokensUsed: resp.tokensUsed,
+      searchResults: resp.searchResults,
+      followUps: resp.followUps,
+      source: resp.source,
+      codeSnippet: resp.codeSnippet,
+    });
+  } catch {
+    // önbellek yazılamazsa sessiz geç (yanıt etkilenmez)
+  }
 }
 
 export function generateHilmanAutonomousResponseSync(

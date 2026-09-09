@@ -135,12 +135,28 @@ export interface ChangelogNote {
   updatedAt: string;
 }
 
+export interface QaCacheEntry {
+  key: string;
+  content: string;
+  reasoning: string;
+  tokensUsed: number;
+  searchResults: Array<{ title: string; snippet: string; url: string }> | null;
+  followUps: string[];
+  source: string | null;
+  codeSnippet: { code: string; language: string; title: string } | null;
+  createdAt: number;
+}
+
+export const QA_DB_TTL_MS = 6 * 60 * 60 * 1000;
+export const QA_DB_MAX = 300;
+
 interface StorageSchema {
   settings: AppSettingsData;
   models: CustomModelData[];
   apiKeys: HilmanApiKey[];
   users: HilmanUser[];
   changelog: ChangelogNote | null; // site açılışında gösterilen duyuru
+  qaCache: QaCacheEntry[]; // soru-cevap kayıtları (geçici kota dostu katman)
   conversations: ConversationData[];
   messages: MessageData[];
 }
@@ -197,6 +213,7 @@ function getDefaultState(): StorageSchema {
     apiKeys: [],
     users: [],
     changelog: null,
+    qaCache: [],
     conversations: [],
     messages: [],
   };
@@ -255,6 +272,11 @@ class HilmanStorage {
 
       if ((data as any).changelog === undefined) {
         (data as any).changelog = null;
+        this.write(data);
+      }
+
+      if (!Array.isArray((data as any).qaCache)) {
+        (data as any).qaCache = [];
         this.write(data);
       }
 
@@ -484,12 +506,12 @@ class HilmanStorage {
     return { allowed: (user.quota as number) > 0, remaining: user.quota as number, plan, policy };
   }
 
-  /** Başarılı sohbet sonrası planın mesaj ücretini düşürür */
-  public consumeQuota(email: string): void {
+  /** Başarılı sohbet sonrası planın mesaj ücretini düşürür (özel ücretle ezilebilir) */
+  public consumeQuota(email: string, customCost?: number): void {
     const data = this.read();
     const user = (data.users || []).find((u) => u.email === email.trim().toLowerCase());
     if (!user) return;
-    const cost = PLAN_POLICY[planOf(user)].costPerMessage;
+    const cost = customCost != null ? customCost : PLAN_POLICY[planOf(user)].costPerMessage;
     if (user.quota == null) return;
     user.quota = Math.max(0, user.quota - cost);
     this.write(data);
@@ -518,6 +540,38 @@ class HilmanStorage {
     const data = this.read();
     (data as any).changelog = null;
     this.write(data);
+  }
+
+  // QA CACHE (DB kalıcı soru-cevap kayıtları — geçici katman, VDS'te kapatılabilir)
+  public getQa(key: string): QaCacheEntry | null {
+    const data = this.read();
+    const list: QaCacheEntry[] = (data as any).qaCache || [];
+    const hit = list.find((e) => e.key === key);
+    if (!hit) return null;
+    if (Date.now() - hit.createdAt > QA_DB_TTL_MS) {
+      (data as any).qaCache = list.filter((e) => e.key !== key);
+      this.write(data);
+      return null;
+    }
+    return hit;
+  }
+
+  public setQa(key: string, entry: Omit<QaCacheEntry, "key" | "createdAt">): void {
+    const data = this.read();
+    let list: QaCacheEntry[] = (data as any).qaCache || [];
+    list = list.filter((e) => e.key !== key);
+    list.push({ ...entry, key, createdAt: Date.now() });
+    while (list.length > QA_DB_MAX) list.shift();
+    (data as any).qaCache = list;
+    this.write(data);
+  }
+
+  public clearQaCache(): number {
+    const data = this.read();
+    const n = ((data as any).qaCache || []).length;
+    (data as any).qaCache = [];
+    this.write(data);
+    return n;
   }
 
   // GENERATED MEDIA (gerçek üretilen videolar: DATA_DIR/generated)

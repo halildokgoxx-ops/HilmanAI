@@ -133,10 +133,19 @@ export async function POST(req: NextRequest) {
       (storageSettings as any)?.customApiKey?.trim() || process.env.CUSTOM_LLM_KEY?.trim() || "";
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (customKey) headers.Authorization = `Bearer ${customKey}`;
+    // CPU dostu kısa prompt + son 4 mesaj
+    const compactMessages = [
+      {
+        role: "system",
+        content:
+          "Sen HilmanAI adında yardımsever, samimi Türkçe yapay zeka asistanısın. İsmin HilmanAI; başka bir yapay zeka olduğunu asla söyleme. Kısa sorulara kısa, uzunlara detaylı cevap ver.",
+      },
+      ...apiMessages.filter((m) => m.role !== "system").slice(-4),
+    ];
     targets.push({
       url: `${customEndpoint}/chat/completions`,
       headers,
-      body: { model: customModel, messages: apiMessages, max_tokens: 768, temperature: 0.7, stream: true },
+      body: { model: customModel, messages: compactMessages, max_tokens: 384, temperature: 0.6, stream: true },
       tag: "hilmanai-custom",
     });
   }
