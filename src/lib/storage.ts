@@ -90,6 +90,8 @@ export interface AppSettingsData {
   groqApiKey?: string;
   openrouterApiKey?: string;
   geminiApiKey?: string;
+  cerebrasApiKey?: string;
+  pollinationsApiKey?: string; // metin + video üretimi
   updatedAt: string;
 }
 

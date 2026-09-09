@@ -902,6 +902,37 @@ interface ApiCallResult {
   source: string;
 }
 
+/**
+ * OpenAI-uyumlu herhangi bir uca tek tip çağrı (Groq/Cerebras/OpenRouter/Pollinations).
+ * Başarılı metin dönerse {text} verir, yoksa null.
+ */
+async function callOpenAIChat(
+  url: string,
+  apiKey: string,
+  model: string,
+  apiMessages: Array<{ role: string; content: string }>,
+  timeoutMs = 12000
+): Promise<string | null> {
+  try {
+    const resp = await fetchWithTimeout(
+      url,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model, messages: apiMessages, max_tokens: 2048, temperature: 0.7 }),
+      },
+      timeoutMs
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const content = data.choices?.[0]?.message?.content || "";
+    return content.trim() ? content.trim() : null;
+  } catch (e: any) {
+    console.warn(`[HilmanAI] OpenAI-chat ${url} error:`, e.message);
+    return null;
+  }
+}
+
 // Dış LLM çağrıları kilitlenmesin diye timeout'lu fetch (varsayılan 12sn).
 // Önceden HF/Groq yanıt vermeyince sohbet 28sn+ takılıyordu.
 async function fetchWithTimeout(
@@ -928,6 +959,8 @@ async function tryExternalLLM(
   const groqKey = process.env.GROQ_API_KEY?.trim() || storageSettings?.groqApiKey?.trim();
   const openrouterKey = process.env.OPENROUTER_API_KEY?.trim() || storageSettings?.openrouterApiKey?.trim();
   const geminiKey = process.env.GEMINI_API_KEY?.trim() || process.env.GOOGLE_API_KEY?.trim() || storageSettings?.geminiApiKey?.trim();
+  const cerebrasKey = process.env.CEREBRAS_API_KEY?.trim() || (storageSettings as any)?.cerebrasApiKey?.trim();
+  const pollinationsKey = process.env.POLLINATIONS_API_KEY?.trim() || (storageSettings as any)?.pollinationsApiKey?.trim();
 
   const apiMessages = [
     { role: "system", content: systemPrompt },
@@ -1045,6 +1078,19 @@ async function tryExternalLLM(
     }
   }
 
+  // 2b. Cerebras (bedava katman, ultra hızlı — varsayılan hızlı model)
+  if (cerebrasKey) {
+    const text = await callOpenAIChat(
+      "https://api.cerebras.ai/v1/chat/completions",
+      cerebrasKey,
+      isCodeRequest ? "qwen-3-32b" : "llama-3.3-70b",
+      apiMessages
+    );
+    if (text) {
+      return { success: true, text, reasoning: "", source: "cerebras" };
+    }
+  }
+
   // 2. OpenRouter (Varsa)
   if (openrouterKey) {
     try {
@@ -1070,6 +1116,20 @@ async function tryExternalLLM(
       }
     } catch (e: any) {
       console.warn("[HilmanAI] OpenRouter error:", e.message);
+    }
+  }
+
+  // 2c. Pollinations Metin (anahtarlı — ücretsiz hesapla alınır)
+  if (pollinationsKey) {
+    const text = await callOpenAIChat(
+      "https://gen.pollinations.ai/v1/chat/completions",
+      pollinationsKey,
+      "openai",
+      apiMessages,
+      15000
+    );
+    if (text) {
+      return { success: true, text, reasoning: "", source: "pollinations" };
     }
   }
 

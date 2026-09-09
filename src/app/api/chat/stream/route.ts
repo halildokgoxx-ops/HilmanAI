@@ -120,7 +120,8 @@ export async function POST(req: NextRequest) {
   const storageSettings = hilmanStorage.getSettings();
   const hfToken = process.env.HF_TOKEN?.trim() || (storageSettings as any)?.hfToken?.trim() || "";
   const groqKey = process.env.GROQ_API_KEY?.trim() || (storageSettings as any)?.groqApiKey?.trim() || "";
-  // Sıra: önce Groq (hızlı + ayrı bedava kota), sonra HF modelleri
+  const cerebrasKey = process.env.CEREBRAS_API_KEY?.trim() || (storageSettings as any)?.cerebrasApiKey?.trim() || "";
+  // Sıra: Groq → Cerebras (ikisi de hızlı + ayrı bedava kota), sonra HF modelleri
   const targets: Array<{ url: string; headers: Record<string, string>; body: any; tag: string }> = [];
   if (groqKey) {
     targets.push({
@@ -128,6 +129,14 @@ export async function POST(req: NextRequest) {
       headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
       body: { model: "llama-3.1-8b-instant", messages: apiMessages, max_tokens: 2048, temperature: 0.7, stream: true },
       tag: "groq:llama-3.1-8b-instant",
+    });
+  }
+  if (cerebrasKey) {
+    targets.push({
+      url: "https://api.cerebras.ai/v1/chat/completions",
+      headers: { Authorization: `Bearer ${cerebrasKey}`, "Content-Type": "application/json" },
+      body: { model: "llama-3.3-70b", messages: apiMessages, max_tokens: 2048, temperature: 0.7, stream: true },
+      tag: "cerebras:llama-3.3-70b",
     });
   }
   if (hfToken && hfToken.length > 10) {

@@ -207,7 +207,9 @@ export function ChatMessage({
               {!isUser && !!message.source && (
                 <span
                   className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${
-                    message.source.startsWith("hf:") || message.source.startsWith("groq:")
+                    message.source.startsWith("hf:") ||
+                    message.source.startsWith("groq") ||
+                    ["gemini", "cerebras", "openrouter", "pollinations"].includes(message.source)
                       ? "bg-emerald-500/10 text-emerald-300 border-emerald-500/25"
                       : message.source === "hilmanai-custom"
                       ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/25"
@@ -219,7 +221,9 @@ export function ChatMessage({
                   }`}
                   title={`Motor: ${message.source}`}
                 >
-                  {message.source.startsWith("hf:") || message.source.startsWith("groq:")
+                  {message.source.startsWith("hf:") ||
+                  message.source.startsWith("groq") ||
+                  ["gemini", "cerebras", "openrouter", "pollinations"].includes(message.source)
                     ? "⚡ Canlı AI"
                     : message.source === "hilmanai-custom"
                     ? "🤖 HilmanAI-7B"
