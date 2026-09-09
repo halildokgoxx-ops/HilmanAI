@@ -902,39 +902,7 @@ interface ApiCallResult {
   source: string;
 }
 
-/**
- * OpenAI-uyumlu herhangi bir uca tek tip çağrı (Groq/Cerebras/OpenRouter/Pollinations).
- * Başarılı metin dönerse {text} verir, yoksa null.
- */
-async function callOpenAIChat(
-  url: string,
-  apiKey: string,
-  model: string,
-  apiMessages: Array<{ role: string; content: string }>,
-  timeoutMs = 12000
-): Promise<string | null> {
-  try {
-    const resp = await fetchWithTimeout(
-      url,
-      {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ model, messages: apiMessages, max_tokens: 2048, temperature: 0.7 }),
-      },
-      timeoutMs
-    );
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    const content = data.choices?.[0]?.message?.content || "";
-    return content.trim() ? content.trim() : null;
-  } catch (e: any) {
-    console.warn(`[HilmanAI] OpenAI-chat ${url} error:`, e.message);
-    return null;
-  }
-}
-
 // Dış LLM çağrıları kilitlenmesin diye timeout'lu fetch (varsayılan 12sn).
-// Önceden HF/Groq yanıt vermeyince sohbet 28sn+ takılıyordu.
 async function fetchWithTimeout(
   url: string,
   init: RequestInit,
@@ -954,6 +922,9 @@ async function tryExternalLLM(
   systemPrompt: string,
   isCodeRequest: boolean
 ): Promise<ApiCallResult> {
+  // SADECE senin modelin: yabancı sağlayıcılar kapalı.
+  // Endpoint yoksa/cevap vermezse çağrıcı yerel çekirdeğe düşer.
+  const FOREIGN_PROVIDERS_ENABLED = false; // HilmanAI-only modu
   const storageSettings = hilmanStorage.getSettings();
   const hfToken = process.env.HF_TOKEN?.trim() || storageSettings?.hfToken?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim() || storageSettings?.groqApiKey?.trim();
@@ -967,7 +938,7 @@ async function tryExternalLLM(
     ...messages.filter((m) => m.role !== "system").slice(-10),
   ];
 
-  // 0. SENİN MODELİN (önce burası: HF Space / kendi sunucun, OpenAI uyumlu /v1)
+  // SENİN MODELİN (HF Space / kendi sunucun, OpenAI uyumlu /v1)
   // Ayar: admin paneli veya CUSTOM_LLM_ENDPOINT ortam değişkeni. Olmazsa zincir eskiye düşer.
   const customEndpoint = (storageSettings?.customEndpoint?.trim() || process.env.CUSTOM_LLM_ENDPOINT?.trim() || "").replace(/\/$/, "");
   if (customEndpoint) {
@@ -1011,8 +982,8 @@ async function tryExternalLLM(
     }
   }
 
-  // 1. Google Gemini (Varsa en hızlı, en güncel ve en zeki)
-  if (geminiKey) {
+  // 1. Google Gemini (KAPALI — sadece HilmanAI modu)
+  if (FOREIGN_PROVIDERS_ENABLED && geminiKey) {
     try {
       const contents = apiMessages.map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
@@ -1049,8 +1020,8 @@ async function tryExternalLLM(
     }
   }
 
-  // 2. Groq Cloud (Varsa en hızlı ve kesintisiz)
-  if (groqKey) {
+  // 2. Groq Cloud (KAPALI — sadece HilmanAI modu)
+  if (FOREIGN_PROVIDERS_ENABLED && groqKey) {
     try {
       const resp = await fetchWithTimeout("https://api.groq.com/openai/v1/chat/completions", {
         method: "POST",
@@ -1078,21 +1049,8 @@ async function tryExternalLLM(
     }
   }
 
-  // 2b. Cerebras (bedava katman, ultra hızlı — varsayılan hızlı model)
-  if (cerebrasKey) {
-    const text = await callOpenAIChat(
-      "https://api.cerebras.ai/v1/chat/completions",
-      cerebrasKey,
-      isCodeRequest ? "qwen-3-32b" : "llama-3.3-70b",
-      apiMessages
-    );
-    if (text) {
-      return { success: true, text, reasoning: "", source: "cerebras" };
-    }
-  }
-
-  // 2. OpenRouter (Varsa)
-  if (openrouterKey) {
+  // 2. OpenRouter (KAPALI — sadece HilmanAI modu)
+  if (FOREIGN_PROVIDERS_ENABLED && openrouterKey) {
     try {
       const resp = await fetchWithTimeout("https://openrouter.ai/api/v1/chat/completions", {
         method: "POST",
@@ -1119,24 +1077,10 @@ async function tryExternalLLM(
     }
   }
 
-  // 2c. Pollinations Metin (anahtarlı — ücretsiz hesapla alınır)
-  if (pollinationsKey) {
-    const text = await callOpenAIChat(
-      "https://gen.pollinations.ai/v1/chat/completions",
-      pollinationsKey,
-      "openai",
-      apiMessages,
-      15000
-    );
-    if (text) {
-      return { success: true, text, reasoning: "", source: "pollinations" };
-    }
-  }
-
-  // 3. Hugging Face Router v1 (Token geçerli ve kredisi varsa)
+  // 3. Hugging Face Router (KAPALI — sadece HilmanAI modu)
   // Üç model PARALEL yarışır — ilk başarılı yanıt kazanır (seri deneme 30sn
   // bekletiyordu, yarışta en yavaş model bile 10sn'de elenir).
-  if (hfToken && hfToken.length > 10) {
+  if (FOREIGN_PROVIDERS_ENABLED && hfToken && hfToken.length > 10) {
     const models = isCodeRequest
       ? ["Qwen/Qwen2.5-Coder-32B-Instruct", "deepseek-ai/DeepSeek-V3", "meta-llama/Llama-3.3-70B-Instruct"]
       : ["deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct", "meta-llama/Llama-3.3-70B-Instruct"];
@@ -1908,6 +1852,53 @@ HilmanAI olarak ben de benzer ileri düzey yapay zeka mimarilerini kullanıyorum
 - **DeepSeek-R1:** Saf pekiştirmeli öğrenme (Reinforcement Learning) ile eğitilen ve karmaşık problemleri adım adım düşünerek çözen açık kaynaklı akıl yürütme modelidir.`,
       reasoning: mode === "düşünen" ? "DeepSeek V3 ve R1 mimarisi özetlendi." : "",
     };
+  }
+
+  // 9z. GENEL KÜLTÜR MİNİ-BANK (sık sorulan temel kavramlar, çevrimdışı doğru bilgi)
+  const miniBank: Array<{ keys: string[]; text: string }> = [
+    {
+      keys: ["uzay nedir", "evren nedir", "kainat nedir", "uzay nedemek"],
+      text: `**Uzay (Evren)**, madde, enerji, gezegenler, yıldızlar, galaksiler ve bunların arasındaki devasa boşlukların tamamıdır.\n\n- 🌌 **Büyüklük:** Gözlemlenebilir evren yaklaşık **93 milyar ışık yılı** çapındadır ve genişlemeye devam eder.\n- ⭐ **İçindekiler:** Milyarlarca galaksi; her galakside milyarlarca yıldız ve gezegen bulunur.\n- 🪐 **Güneş Sistemimiz:** 1 yıldız (Güneş), 8 gezegen ve sayısız göktaşından oluşur.\n- 🚀 **Keşif:** İnsanlık Ay'a ayak bastı; Mars ve ötesi için çalışmalar sürüyor.\n\nUzayın belirli bir yönünü (kara delikler, gezegenler, oluşumu) sorarsan detaylandırırım.`,
+    },
+    {
+      keys: ["su nedir", "suyun formulu", "h2o nedir"],
+      text: `**Su (H₂O)**, iki hidrojen ve bir oksijen atomundan oluşan, yaşamın temelidir.\n\n- 💧 **Özellikleri:** Renksiz, kokusuz, tatsızdır; 0°C'de donar, 100°C'de kaynar (deniz seviyesinde).\n- 🌍 **Dağılım:** Dünya yüzeyinin yaklaşık %71'i suyla kaplıdır; bunun çoğu tuzlu okyanus suyudur.\n- 🧬 **Yaşam:** İnsan vücudunun yaklaşık %60'ı sudur; tüm canlılar için zorunludur.`,
+    },
+    {
+      keys: ["ışık nedir", "isik nedir", "ışık hızı", "isik hizi"],
+      text: `**Işık**, hem dalga hem parçacık gibi davranan elektromanyetik radyasyondur.\n\n- ⚡ **Hızı:** Boşlukta saniyede yaklaşık **299.792 km** — evrendeki en yüksek hız.\n- 🌈 **Tayf:** Gözümüz sadece dar bir aralığı (görünür ışık) algılar; ötesi kızılötesi, morötesi, X-ışınlarıdır.\n- ☀️ **Kaynak:** Güneş ışığı Dünya'ya yaklaşık **8 dakikada** ulaşır.`,
+    },
+    {
+      keys: ["elektrik nedir", "elektrik nasil uretilir", "elektrik nasıl üretilir"],
+      text: `**Elektrik**, elektronların hareketiyle oluşan enerji türüdür.\n\n- 🔌 **Üretim:** Baraj (hidroelektrik), güneş paneli, rüzgar türbini, doğalgaz ve nükleer santrallerle üretilir.\n- 🏠 **Şebeke:** Santrallerden yüksek gerilim hatlarıyla şehirlere, trafolarla evlere dağıtılır.\n- ⚠️ **Güvenlik:** Ev elektriği ciddidir; tesisat işlerini mutlaka uzmanına bırak.`,
+    },
+    {
+      keys: ["yerçekimi nedir", "yercekimi nedir", "gravity nedir", "kütle çekimi"],
+      text: `**Yerçekimi (kütle çekimi)**, kütlesi olan her şeyin birbirini çekmesidir.\n\n- 🍎 **Dünya'da:** Cisimleri yere doğru ~**9,8 m/s²** ivmeyle çeker.\n- 🌙 **Ay'da:** Dünya'nın yaklaşık **6'da 1'i** kadardır — astronotlar zıplar gibi yürür.\n- 🪐 **Genel görelilik:** Einstein'a göre kütle, uzay-zamanı büker; bu bükülme çekim olarak hissedilir.`,
+    },
+    {
+      keys: ["fotosentez nedir", "fotosentez nasil olur"],
+      text: `**Fotosentez**, bitkilerin güneş ışığıyla besin üretmesidir.\n\n- 🌱 **Formül:** Su + karbondioksit + ışık → glikoz (şeker) + oksijen.\n- 🍃 **Yer:** Yapraklardaki **klorofil** pigmenti ışığı yakalar.\n- 🌍 **Önemi:** Soluduğumuz oksijenin büyük kısmı bu süreçten gelir.`,
+    },
+    {
+      keys: ["beyin nedir", "insan beyni", "beyin nasil calisir"],
+      text: `**Beyin**, yaklaşık **86 milyar nöron** içeren vücudun yönetim merkezidir.\n\n- 🧠 **Bölümler:** Düşünme ve karar (ön lob), hafıza, hareket ve duyu alanları birlikte çalışır.\n- ⚡ **Hız:** Sinyaller sinirlerde saatte yüzlerce kilometre hızla taşınır.\n- 😴 **Uyku:** Beyin uykuda günün bilgilerini düzenler ve pekiştirir.`,
+    },
+    {
+      keys: ["zaman nedir", "zaman kavrami"],
+      text: `**Zaman**, olayların geçmişten geleceğe sıralanışıdır.\n\n- ⏱️ **Ölçüm:** Saniye, dakika, saat, gün, yıl gibi birimlerle ölçülür.\n- 🌌 **Fizik:** Einstein'a göre zaman uzayla birdir (**uzay-zaman**) ve kütleçekimde yavaşlar.\n- 🧭 **Günlük hayat:** Dünya'nın kendi ekseni dönüşü günü, Güneş çevresi turu yılı oluşturur.`,
+    },
+  ];
+  {
+    const n = normalizeTr(userPrompt).replace(/\s+/g, "");
+    for (const entry of miniBank) {
+      if (entry.keys.some((k) => n.includes(normalizeTr(k).replace(/\s+/g, "")))) {
+        return {
+          text: entry.text,
+          reasoning: mode === "düşünen" ? `Yerel bilgi bankasından "${userPrompt}" yanıtlandı.` : "",
+        };
+      }
+    }
   }
 
   // 10. SON KALE: çeşitlenen netleştirici (şablon cümle YASAK!)

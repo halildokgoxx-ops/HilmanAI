@@ -118,36 +118,27 @@ export async function POST(req: NextRequest) {
   }
 
   const storageSettings = hilmanStorage.getSettings();
-  const hfToken = process.env.HF_TOKEN?.trim() || (storageSettings as any)?.hfToken?.trim() || "";
-  const groqKey = process.env.GROQ_API_KEY?.trim() || (storageSettings as any)?.groqApiKey?.trim() || "";
-  const cerebrasKey = process.env.CEREBRAS_API_KEY?.trim() || (storageSettings as any)?.cerebrasApiKey?.trim() || "";
-  // Sıra: Groq → Cerebras (ikisi de hızlı + ayrı bedava kota), sonra HF modelleri
+  // SADECE senin modelin: yabancı sağlayıcılar kapalı.
+  const customEndpoint = (
+    (storageSettings as any)?.customEndpoint?.trim() ||
+    process.env.CUSTOM_LLM_ENDPOINT?.trim() ||
+    ""
+  ).replace(/\/$/, "");
+  // Sıra: yalnızca senin modelin (SSE destekliyorsa canlı akar)
   const targets: Array<{ url: string; headers: Record<string, string>; body: any; tag: string }> = [];
-  if (groqKey) {
+  if (customEndpoint) {
+    const customModel =
+      (storageSettings as any)?.customModel?.trim() || process.env.CUSTOM_LLM_MODEL?.trim() || "hilmanai";
+    const customKey =
+      (storageSettings as any)?.customApiKey?.trim() || process.env.CUSTOM_LLM_KEY?.trim() || "";
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (customKey) headers.Authorization = `Bearer ${customKey}`;
     targets.push({
-      url: "https://api.groq.com/openai/v1/chat/completions",
-      headers: { Authorization: `Bearer ${groqKey}`, "Content-Type": "application/json" },
-      body: { model: "llama-3.1-8b-instant", messages: apiMessages, max_tokens: 2048, temperature: 0.7, stream: true },
-      tag: "groq:llama-3.1-8b-instant",
+      url: `${customEndpoint}/chat/completions`,
+      headers,
+      body: { model: customModel, messages: apiMessages, max_tokens: 768, temperature: 0.7, stream: true },
+      tag: "hilmanai-custom",
     });
-  }
-  if (cerebrasKey) {
-    targets.push({
-      url: "https://api.cerebras.ai/v1/chat/completions",
-      headers: { Authorization: `Bearer ${cerebrasKey}`, "Content-Type": "application/json" },
-      body: { model: "llama-3.3-70b", messages: apiMessages, max_tokens: 2048, temperature: 0.7, stream: true },
-      tag: "cerebras:llama-3.3-70b",
-    });
-  }
-  if (hfToken && hfToken.length > 10) {
-    for (const m of ["deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-72B-Instruct", "meta-llama/Llama-3.3-70B-Instruct"]) {
-      targets.push({
-        url: "https://router.huggingface.co/v1/chat/completions",
-        headers: { Authorization: `Bearer ${hfToken}`, "Content-Type": "application/json" },
-        body: { model: m, messages: apiMessages, max_tokens: 2048, temperature: 0.7, stream: true },
-        tag: `hf:${m}`,
-      });
-    }
   }
 
   const stream = new ReadableStream({
