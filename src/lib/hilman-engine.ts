@@ -925,9 +925,9 @@ async function tryExternalLLM(
   systemPrompt: string,
   isCodeRequest: boolean
 ): Promise<ApiCallResult> {
-  // SADECE senin modelin: yabancı sağlayıcılar kapalı.
-  // Endpoint yoksa/cevap vermezse çağrıcı yerel çekirdeğe düşer.
-  const FOREIGN_PROVIDERS_ENABLED = false; // HilmanAI-only modu
+  // Motor zinciri: önce senin modelin, sonra HF bulutu (marka filtresiyle).
+  // Görünen kimlik her durumda HilmanAI'dır (sistem promptu + kimlik filtresi).
+  const FOREIGN_PROVIDERS_ENABLED = true;
   const storageSettings = hilmanStorage.getSettings();
   const hfToken = process.env.HF_TOKEN?.trim() || storageSettings?.hfToken?.trim();
   const groqKey = process.env.GROQ_API_KEY?.trim() || storageSettings?.groqApiKey?.trim();
